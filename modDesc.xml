@@ -1,0 +1,133 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<modDesc descVersion="31">
+   <author>upsideDown</author>
+    <title>
+		<en>GPS-Mod</en>
+        <de>GPS-Mod</de> 
+		<fr>GPS-Mod</fr>
+    </title>
+    <description>
+        <en><![CDATA[GPS-Mod]]></en>
+		<de><![CDATA[GPS-Mod]]></de>
+		<fr><![CDATA[GPS-Mod]]></fr>
+ 	</description>
+    <multiplayer supported="true"/>   
+	<iconFilename>store.dds</iconFilename>
+	<version>5.01</version>
+	<l10n>
+		<!-- Buttons -->
+		<text name="input_GPS_SteeringOnOff">             <en>GPS activ/passiv</en><de>GPS aktiv/passiv</de><fr>GPS actif/passif</fr></text>		
+		<text name="input_GPS_OnOff">             		<en>turn GPS On/Off</en><de>GPS ein-, ausschalten</de>	<fr>GPS on/off</fr></text>
+		<text name="input_GPS_Init">             			<en>GPS init</en><de>GPS neue Richtung</de><fr>Init. GPS</fr></text>
+		<text name="input_GPS_Save">            			<en>GPS save course</en><de>GPS Kurs speichern</de><fr>GPS save. trajet</fr></text>
+		<text name="input_GPS_Load">             			<en>GPS load course</en><de>GPS Kurs laden</de><fr>GPS charger trajet</fr></text>
+		<text name="input_GPS_WidthPlus">             <en>GPS width plus</en><de>GPS Arbeitsbreite Plus </de><fr>GPS largeur +</fr></text>
+		<text name="input_GPS_WidthMinus">             <en>GPS width minus</en><de>GPS Arbeitsbreite Minus </de><fr>GPS largeur -</fr></text>
+		<text name="input_GPS_InfoMode">             <en>GPS display mode</en><de>GPS Anzeige Modus</de><fr>GPS mode affichage</fr></text>
+		<text name="input_GPS_NearestSteerable">             <en>GPS nearest steerable</en><de>GPS Fahrzeug in der Nähe</de><fr>GPS + proche véhicule</fr></text>
+		<text name="input_GPS_AutoWidth">             <en>GPS auto width</en><de>GPS automat. Arbeitsbreite</de><fr>GPS largeur auto</fr></text>
+		<text name="input_GPS_OffsetLeft">             <en>GPS offset left</en><de>GPS Versatz Links</de><fr>GPS offset gauche</fr></text>
+		<text name="input_GPS_OffsetRight">             <en>GPS offset right</en><de>GPS Versatz Rechts</de><fr>GPS offset droit</fr></text>
+		<text name="input_GPS_InvertOffset_V3">             <en>GPS invert offset</en><de>GPS Versatz umkehren</de><fr>GPS inverser offset</fr></text>
+		<text name="input_GPS_OffsetZero">             <en>GPS offset zero</en><de>GPS Versatz zurücksetzen</de><fr>GPS offset 0</fr></text>
+		<text name="input_GPS_OffsetAutoInvert">    <en>GPS offset auto invert</en><de>GPS automat. Versatzumkehr</de><fr>GPS auto inversion offset</fr></text>
+		<text name="input_GPS_adjustCourseModifier"> <en>GPS adjust course modifier</en><de>GPS Kurs Modifiziertaste</de><fr>GPS Ajuster course</fr>	</text>
+		<text name="input_GPS_MouseModifier">  <en>GPS mouse modifier</en><de>GPS Maus Modifiziertaste</de><fr>GPS modification souris</fr>	 </text>
+		<text name="input_GPS_shiftParallelLeft">    <en>GPS shift parallel left</en><de>GPS links verschieben</de><fr>GPS shift parallel left</fr></text>
+		<text name="input_GPS_shiftParallelRight">   <en>GPS shift parallel right</en><de>GPS rechts verschieben</de><fr>GPS shift parallel right</fr></text>
+		<text name="input_GPS_turnLeft">             <en>GPS turn left</en><de>GPS links Abbiegen</de><fr>GPS virage gauche</fr></text>		
+		<text name="input_GPS_turnRight">             <en>GPS turn right</en><de>GPS rechts Abbiegen</de><fr>GPS virage droit</fr></text>		
+		<text name="input_GPS_90Grad">             <en>GPS 90 degree rotation</en><de>GPS 90 Grad drehen</de><fr>GPS rotation 90°</fr></text>		
+		<text name="input_GPS_storePlus">             <en>GPS next store slot</en><de>GPS nächster Speicherplatz</de><fr>GPS emplac. suivant</fr></text>		
+		<text name="input_GPS_storeMinus">             <en>GPS previous store slot</en><de>GPS vorheriger Speicherplatz</de><fr>GPS emplac. préc.</fr></text>		
+		<text name="input_GPS_lineMode">             <en>GPS line mode</en><de>GPS Linienmodus</de><fr>GPS mode ligne</fr></text>		
+		<text name="input_GPS_wheelMode">             <en>GPS wheel mode</en><de>GPS Lenkradmodus</de><fr>GPS mode roue</fr></text>			
+		<text name="input_GPS_endFieldMode">             <en>GPS end field mode</en><de>GPS Feldende Modus</de><fr>GPS mode fin de champ</fr></text>		
+		<text name="input_GPS_minFreeLanesPlus"><en>GPS min. free lanes plus</en><de>GPS min. freie Linien Plus</de><fr>GPS augm. lignes libre</fr></text>		
+		<text name="input_GPS_minFreeLanesMinus"><en>GPS min. free lanes minus </en><de>GPS min. freie Linien Minus</de><fr>GPS dim. lignes libre</fr></text>	
+		<text name="input_GPS_resetRowNo">             <en>GPS reset row counter</en><de>GPS Reihenzähler nullen</de><fr>GPS raz compteur rang</fr></text>
+		<!--<text name="GPS_userInput">             <en>GPS rename course</en>             <de>GPS Kurs umbenennen</de>			         </text>-->	
+		<text name="input_GPS_Delete">             <en>GPS delete course</en><de>GPS Kurs löschen </de><fr>GPS effacer trajet</fr></text>
+		<text name="input_GPS_doSideCorrect"><en>GPS field edge correction</en><de>Automatik seitlicher Feldrand</de><fr>GPS correction angle champ</fr></text>
+		
+		
+		<!-- Text -->
+		<text name="GPS_InfoMode">             <en>GPS display mode</en><de>GPS Anzeige Modus</de><fr>GPS mode affichage</fr></text>
+		<text name="GPS_wheelMode">             <en>GPS wheel mode</en><de>GPS Lenkradmodus</de><fr>GPS mode roue</fr></text>			
+		<text name="GPS_lineMode">             <en>GPS line mode</en><de>GPS Linienmodus</de><fr>GPS mode ligne</fr></text>		
+		<text name="GPS_endFieldMode">             <en>GPS end field mode</en><de>GPS Feldende Modus</de><fr>GPS mode fin de champ</fr></text>		
+		
+		<text name="GPS_NAME"><en>GPS course</en><de>GPS Kurs</de><fr>GPS course</fr><es>GPS ruta</es><cz>GPS trasy</cz></text>
+		<text name="turnOn">             <en>Turn GPS on</en><de>GPS einschalten</de><fr>Allumer GPS</fr></text>
+		<text name="turnOff">             <en>Turn GPS Off</en><de>GPS ausschalten</de><fr>Eteindre GPS</fr></text>
+		<text name="WidthPlus">             <en>Increase working width</en><de>Arbeitsbreite erhöhen</de><fr>Augm. largeur</fr></text>
+		<text name="WidthMinus">             <en>Decrease working width</en><de>Arbeitsbreite verringern </de><fr>Dim. largeur</fr></text>
+		<text name="AutoWidth">             <en>Automat. working width</en><de>automat. Arbeitsbreite</de><fr>Largeur auto</fr></text>
+		<text name="OffsetLeft">             <en>Offset to the left</en><de>Versatz nach Links</de><fr>Offset gauche</fr></text>
+		<text name="OffsetRight">             <en>Offset to the right</en><de>Versatz nach Rechts</de><fr>Offset droit</fr></text>
+		<text name="OffsetZero">             <en>Reset offset</en><de>Versatz zurücksetzen</de><fr>Reset offset</fr></text>
+		<text name="InvertOffset">             <en>Reverse offset</en><de>Versatz umkehren</de><fr>Reverse offset</fr></text>
+		<text name="OffsetAutoInvert">             <en>Automat. offset reversal</en><de>automat. Versatzumkehr</de><fr>Auto reverse offset</fr></text>
+		<text name="ShiftParallelLeft">             <en>Shift course left</en><de>Kurs links verschieben</de><fr>Shift course left</fr></text>
+		<text name="ShiftParallelRight">             <en>Shift course right</en><de>Kurs rechts verschieben</de><fr>Shift course right</fr></text>
+		<text name="Degree90">             <en>Rotate 90 degrees</en><de>Kurs 90 Grad drehen</de><fr>Rotation 90°</fr></text>		
+		<text name="RotateLeft">             <en>Rotate course left</en><de>Kurs links drehen</de>	<fr>Rotation gauche</fr></text>		
+		<text name="RotateRight">             <en>rotate course right</en><de>Kurs rechts drehen</de><fr>Rotation droite</fr></text>	
+		<text name="TurnLeft">             <en>Turn left</en><de>Links Abbiegen</de><fr>Tourner gaucher</fr></text>		
+		<text name="TurnRight">             <en>Turn right</en><de>Rechts Abbiegen</de><fr>Tourner droite</fr></text>		
+		<text name="AutoStopDistPlus">             <en>incr. auto. stop dist.</en><de>auto. Stop-Dist. erhöhen</de><fr>Augm. distance arrêt auto</fr></text>		
+		<text name="AutoStopDistMinus">             <en>decr. auto. stop dist.</en><de>auto Stop-Dist. verringern</de><fr>Dim. distance arrêt auto</fr></text>	
+		<text name="MinFreeLanesPlus">             <en>Free lanes plus</en><de>Anz. freie Linien erhöhen</de><fr>Augm. lignes libres</fr></text>		
+		<text name="MinFreeLanesMinus">             <en>Free lanes minus </en><de>Anz. freie Linien verringern</de><fr>Dim. lignes libres</fr></text>	
+		<text name="Initiate">             <en>set new direction</en><de>neue Richtung festlegen</de><fr>Définir nouvelle direction</fr></text>
+		<text name="NearestSteerable">             <en>Course from neighbor</en><de>Kurs vom Nachbarn laden</de><fr>Trajet depuis voisin</fr></text>
+		<text name="SteeringOnOff">             <en>GPS active/passive</en><de>GPS aktiv/passiv</de><fr>GPS actif/passif</fr></text>		
+		<text name="StorePlus">             <en>Next store slot</en><de>nächster Speicherplatz</de><fr>Empl. suivant</fr></text>		
+		<text name="StoreMinus">             <en>previous store slot</en><de>vorheriger Speicherplatz</de>	<fr>Empl. précédent</fr></text>		
+		<text name="Load">             <en>Load course</en><de>Kurs laden</de><fr>Charger trajet</fr></text>
+		<text name="Save">             <en>Save course</en><de>Kurs speichern</de>	<fr>Enreg. trajet</fr></text>
+		<text name="Delete">             <en>Delete course</en><de>Kurs löschen </de><fr>Supp. trajet</fr></text>
+		
+	</l10n>
+	<inputBindings>
+		<input name="GPS_OnOff"       			category="VEHICLE" key1="KEY_lctrl KEY_KP_0"   			key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_SteeringOnOff"    		category="VEHICLE" key1="KEY_lctrl KEY_w"  				key2="" button="BUTTON_19 BUTTON_6" device="0" mouse="" /> 
+		<input name="GPS_Init"        			category="VEHICLE" key1="KEY_lctrl KEY_KP_enter" 		key2="" button="" device="0" mouse="" />
+		<input name="GPS_Save"        			category="VEHICLE" key1="KEY_lctrl KEY_KP_multiply" 	key2="" button="" device="0" mouse="" />
+		<input name="GPS_Load"        			category="VEHICLE" key1="KEY_lctrl KEY_KP_divide"   	key2="" button="" device="0" mouse="" />
+		<input name="GPS_WidthPlus"        		category="VEHICLE" key1="KEY_lctrl KEY_KP_plus"   		key2="" button="" device="0" mouse="" />  
+		<input name="GPS_WidthMinus"        	category="VEHICLE" key1="KEY_lctrl KEY_KP_minus"   		key2="" button="" device="0" mouse="" />
+		<input name="GPS_InfoMode"	        	category="VEHICLE" key1="KEY_lctrl KEY_KP_period"   	key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_NearestSteerable"		category="VEHICLE" key1="KEY_lctrl KEY_KP_2"   			key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_AutoWidth"				category="VEHICLE" key1="KEY_lctrl KEY_KP_3"   			key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_OffsetLeft"	    	category="VEHICLE" key1="KEY_lctrl KEY_pagedown"   		key2="" button="" device="0" mouse="" />   		
+		<input name="GPS_OffsetRight"	    	category="VEHICLE" key1="KEY_lctrl KEY_pageup"   		key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_InvertOffset_V3"      	category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_OffsetZero"      		category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_OffsetAutoInvert" 		category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_adjustCourseModifier"  category="VEHICLE" key1="KEY_lctrl KEY_lshift"  		key2="" button="" device="0" mouse="" />
+		<input name="GPS_MouseModifier"      	category="VEHICLE" key1="KEY_lctrl"   					key2="" button="" device="0" mouse="" />
+		<input name="GPS_shiftParallelLeft" 	category="VEHICLE" key1="KEY_lctrl KEY_left"   			key2="" button="" device="0" mouse="" />   		
+		<input name="GPS_shiftParallelRight" 	category="VEHICLE" key1="KEY_lctrl KEY_right"   		key2="" button="" device="0" mouse="" />   		
+		<input name="GPS_turnLeft" 				category="VEHICLE" key1="KEY_lctrl KEY_up"   			key2="" button="" device="0" mouse="" />   
+		<input name="GPS_turnRight" 			category="VEHICLE" key1="KEY_lctrl KEY_down"   			key2="" button="" device="0" mouse="" /> 
+		<input name="GPS_90Grad" 				category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_storePlus" 			category="VEHICLE" key1="KEY_lctrl KEY_period"   		key2="" button="" device="0" mouse="" />
+		<input name="GPS_storeMinus" 			category="VEHICLE" key1="KEY_lctrl KEY_comma"   		key2="" button="" device="0" mouse="" />
+		<input name="GPS_lineMode" 				category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_wheelMode" 			category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_endFieldMode" 			category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_minFreeLanesPlus" 		category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_minFreeLanesMinus" 	category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_Delete" 				category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_resetRowNo" 			category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		<input name="GPS_doSideCorrect"			category="VEHICLE" key1=""   							key2="" button="" device="0" mouse="" />
+		
+		<!--<input name="GPS_userInput" 			category="VEHICLE" key1="KEY_lctrl KEY_KP_4"   			key2="" button="" device="0" mouse="" />-->
+<!--	<input name="GPS_turnLimitPlus" 		category="VEHICLE" key1="KEY_lctrl KEY_k"   			key2="" button="" device="0" mouse="" />
+		<input name="GPS_turnLimitMinus" 		category="VEHICLE" key1="KEY_lctrl KEY_l"   			key2="" button="" device="0" mouse="" /> 		-->		
+    </inputBindings>
+	<extraSourceFiles>
+        <sourceFile filename="register.lua" />
+    </extraSourceFiles>    
+</modDesc>
