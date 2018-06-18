@@ -1,6 +1,15 @@
 --
 -- GPS with steering assistance
---
+--[[
+	V5.02.002 AndyK70			no GPS deactivation when switching to a different vehicle with no GPS active and steering and coming back to first vehicle
+	V5.02.001 AndyK70 18-05-14: shifting course now always at 1 decimal precision
+			
+	ToDo:	setting the auto stop point to the implement work area
+			separating GPS courses from vehicle attributes to own GPSSettings.xml
+			bringing GPS vehicle settings from vehicle root node to GPS node
+			
+			turn to designated lane no. even if turn radius is bigger than lane width not going to next lane
+--]]
 -- V5.0 upsidedown 16-10-27: conversion to LS17, new graphics, naming of courses removed
 -- 
 -- V4.1: upsidedown 14-11-16: changed isField()-method with patch from Koper, fixed autodetection for new workAreas variable, added french translations
@@ -21,13 +30,13 @@
 -- gotchTOM @ 12-May-2014
 -- V3.1.9 Texte erweitert, angepaßt
 -- V3.1.6 user input to rename each course (inspired by courseplay!); storePlus/storeMinus in ten steps; GPS:saveCourse(), GPS:deleteCourse(), GPS:loadCourse() added
---		  update current course, if it was changed by another player in MP 	
+--	update current course, if it was changed by another player in MP 	
 -- V3.1.5 GPS_shiftParallel fixed
 -- V3.1.4 Sounds in GPS_config.xml
 -- V3.1.3 diffAnglecos fixed
 -- V3.1.2 Sounds added
 --
--- V3.1 minor fixes: MR articulated axis, MR 1.2+ compatible, GPSBaseNode entry for vehicles added, "GPS_config.xml"-error on dedicated servers,  HUD files fixed for lower details setting
+-- V3.1 minor fixes: MR articulated axis, MR 1.2+ compatible, GPSBaseNode entry for vehicles added, "GPS_config.xml"-error on dedicated servers, HUD files fixed for lower details setting
 --
 -- V3.0 long list of changes (crab steer, reverse, flexible steering points, field distance, MR compatible)
 
@@ -47,8 +56,27 @@ source(Utils.getFilename("GPS_Event.lua", GPS_directory));
 source(Utils.getFilename("GPS_SaveEvent.lua", GPS_directory));
 source(Utils.getFilename("GPS_DeleteEvent.lua", GPS_directory));
 
+function GPS:round(value, decimal)
+	if value == nil or value == 0 then
+		return 0;
+	end;
+
+	if decimal == nil then
+		decimal = 0;
+	end;
+
+	decimal = 10^decimal;
+
+	local p5 = .5;
+--[[	if value < 0 then
+		p5 = -.5;
+	end --]]
+
+	return math.floor(value * decimal + p5) / decimal;
+end
+
 function GPS:prerequisitesPresent(specializations)
-    --return true;
+	--return true;
 	return SpecializationUtil.hasSpecialization(steerable, specializations);
 end;
 
@@ -57,19 +85,19 @@ function GPS:load(xmlFile)
 	-- sounds
 	-- SEARCH FOR "sample" to find commented out code for sound
 	local GPSwarningSoundFile = Utils.getFilename("GPS_warning.wav", g_modsDirectory.."/ZZZ_GPS/");	
-    self.GPSwarningSoundId = createSample("GPSwarningSound");
-    loadSample(self.GPSwarningSoundId, GPSwarningSoundFile, false);
+	self.GPSwarningSoundId = createSample("GPSwarningSound");
+	loadSample(self.GPSwarningSoundId, GPSwarningSoundFile, false);
 	self.GPSallowWarningSound = true;
 	self.GPSswitchWarningSound = false;
 	
 	local GPSstartSoundFile = Utils.getFilename("GPS_on.wav", g_modsDirectory.."/ZZZ_GPS/");	
-    self.GPSstartSoundId = createSample("GPSonSound");
-    loadSample(self.GPSstartSoundId, GPSstartSoundFile, false);
+	self.GPSstartSoundId = createSample("GPSonSound");
+	loadSample(self.GPSstartSoundId, GPSstartSoundFile, false);
 	self.GPSallowStartSound = true;
 	
 	local GPSstopSoundFile = Utils.getFilename("GPS_off.wav", g_modsDirectory.."/ZZZ_GPS/");	
-    self.GPSstopSoundId = createSample("GPSoffSound");
-    loadSample(self.GPSstopSoundId, GPSstopSoundFile, false);
+	self.GPSstopSoundId = createSample("GPSoffSound");
+	loadSample(self.GPSstopSoundId, GPSstopSoundFile, false);
 	self.GPSallowStopSound = false;
 	
 	
@@ -111,13 +139,17 @@ function GPS:load(xmlFile)
 
 	self.GPSshowTime = 0;
 	
+	self.GPSActive = false;
+	self.GPSisEntered = false;
 	self.GPSisActiveSteering = false;
 	self.GPSclickTimer = 0;
 	
 	self.GPSshowMode = 1;
 	
+	self.GPS_LRoffsetUC = 0;
 	self.GPS_LRoffset = 0;
 	self.GPS_LRoffset_resetTimer = 0;
+	self.GPS_maxLRoffset = 0;
 	
 	self.GPStxt = {};
 	self.GPStxt.txt = "";
@@ -152,6 +184,9 @@ function GPS:load(xmlFile)
 		GPS.Store = {};
 	end;
 	self.GPS_storeSlot = 1;
+	self.GPSstoreKeyTimer = 0;
+	self.GPSstoreKeyTimerDiff = 333; -- in ms
+
 	-- name
 	self.GPS_slotName = "";
 	self.userInputActive = false;
@@ -171,22 +206,18 @@ function GPS:load(xmlFile)
 		 zNodeReverse = math.min(zNodeReverse,z)		 
 	end;
 	
-	
-	
 	self.GPSzNodeForward = zNodeForward;
 	self.GPSzNodeReverse = zNodeReverse;
 	setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --initial setting
 	
-	
 	self.GPSlaneNo =0;
 	self.GPSlaneNoOffset = 0;
-	
-	
 	
 	self.GPSautoStopKeyTimer = 0;
 	self.GPSautoStop = false;
 	self.GPSautoStopDistance = 1.0;
 	self.GPSautoStopDone = false;	
+	self.GPSminautoStopDistance = 1.0; -- -5.0 does not work due to calculation of distance to field border;
 	
 	self.GPSmovingDirection = 1.0;
 	self.GPSmovingDirectionCnt = 40;
@@ -212,10 +243,9 @@ function GPS:load(xmlFile)
 		local file = g_modsDirectory.."/GPS_config.xml";
 		
 		if fileExists(file) then
-			print("removing ",file," from dedicated server")
+			print("GPS removing ",file," from dedicated server")
 			deleteFile(file)
 		end;
-		
 		
 	else --no need to load all the graphics into the dedi		
 		GPS:prepareHUD();
@@ -229,7 +259,6 @@ function GPS:load(xmlFile)
 	self.GPSsideCorrect = 0;
 	self.GPSdoSideCorrect = false; --change this to true if you want to try the parallel driving
 end;
-
 
 
 function GPS:updateVehiclePhysics(oldFunc, axisForward, axisForwardIsAnalog, axisSide, axisSideIsAnalog, doHandbrake, dt)	
@@ -246,13 +275,8 @@ function GPS:updateVehiclePhysics(oldFunc, axisForward, axisForwardIsAnalog, axi
 		end;
 	end;
 	
-	
-
 	oldFunc(self, axisForward, axisForwardIsAnalog, newAxis, axisSideIsAnalog, doHandbrake, dt);
 end;
-
-
-
 
 
 function GPS:mouseEvent(posX, posY, isDown, isUp, button)
@@ -317,6 +341,7 @@ function GPS:updateTick(dt)
 		self.GPS_LRoffset_resetTimer = 0;
 	end
 	
+--[[
 	-- if self.GPSActive then
 		-- if self.GPSisActiveSteering then
 			-- self.GPStxt.txt = Steerable.GPS_TXT_ACT;
@@ -341,6 +366,7 @@ function GPS:updateTick(dt)
 		-- self.GPStxt.b = 0;
 		-- self.GPStxt.bold = false;
 	-- end
+--]]
 
 	if self.GPS_blinkTime > 0 then
 		self.GPS_blinkTime = self.GPS_blinkTime - dt;
@@ -355,16 +381,13 @@ function GPS:updateTick(dt)
 	end
 	
 	
-	
-	--if math.abs(self.axisSide/(1+math.abs(Utils.getNoNil(self.steeringOffset,0)))-Utils.getNoNil(self.steeringOffset,0)) > 0.5 then --reset on manual steering
-	--print("GPS ",math.abs(InputBinding.getDigitalInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) + math.abs(InputBinding.getAnalogInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)))
-	
 	--change to read real input, too many weird steering scripts by upsidedown out there ;)
-	if math.abs(InputBinding.getDigitalInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) + math.abs(InputBinding.getAnalogInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) > 0.5 then
+	math.abs(InputBinding.getAnalogInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) > 0.5 then
+	if self.GPSisEntered and math.abs(InputBinding.getDigitalInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) + math.abs(InputBinding.getAnalogInputAxis(InputBinding.AXIS_MOVE_SIDE_VEHICLE)) > 0.5 then
 		self.GPSisActiveSteering = false;	
 	end
 	
-	--print(self.name,"  ",self.steeringEnabled)
+	--print(self.name,"	",self.steeringEnabled)
 	if self.steeringEnabled then --test for potential cp-problem
 		if GPS.GPSanalogControllerMode then
 			self.axisSide = Utils.getNoNil(self.GPSsteeringOffset,0);
@@ -377,9 +400,7 @@ function GPS:updateTick(dt)
 		-- if not self.isServer then --improve MP sync
 			-- self.raiseDirtyFlags(self, self.drivableGroundFlag)
 		-- end;
-		
 	end;
-	
 end;
 
 function GPS:update(dt)
@@ -392,7 +413,7 @@ function GPS:update(dt)
 		self.GPS_HUD_AutoLeft = self.GPSautoStop and self.GPSTurnInsteadOfAutoStop and (self.GPSturningDirection > 0);
 		self.GPS_HUD_AutoRight = self.GPSautoStop and self.GPSTurnInsteadOfAutoStop and (self.GPSturningDirection < 0);
 
-		self.GPS_HUD_distanceStr = "--  ";		
+		self.GPS_HUD_distanceStr = "--	";		
 		if self.GPSdistance2FieldBorder ~= nil then
 			if self.GPSautoStop and self.GPSTurnInsteadOfAutoStop then
 				self.GPS_HUD_distanceStr = string.format("%2.1f",self.GPSdistance2FieldBorder - self.GPSautoStopDistance);
@@ -413,11 +434,7 @@ function GPS:update(dt)
 		--GPS_HUD_rowStr
 		self.GPS_HUD_rowStr = " 0";
 		local row = self.GPSlaneNo - self.GPSlaneNoOffset;
-		if row > 0 then
-			self.GPS_HUD_rowStr = string.format("+%d",row);
-		else		
-			self.GPS_HUD_rowStr = string.format("%d",row);
-		end;
+		self.GPS_HUD_rowStr = string.format("% d",row);
 		
 		self.GPSanalogControllerMode = GPS.GPSanalogControllerMode; --copy for comp. with HUD
 		
@@ -441,7 +458,6 @@ function GPS:update(dt)
 	if self:getIsActiveForInput(false) then
 		if InputBinding.hasEvent(InputBinding.GPS_OnOff) then
 			self.GPSActive = not self.GPSActive;
-			
 			
 			if self.hirableToolsHUD ~= nil then --resolve inputbinding conflict with hireable tools
 				if InputBinding.hasEvent(InputBinding.HELFERTOOLS_HUD) then
@@ -514,61 +530,81 @@ function GPS:update(dt)
 			end;
 			
 			if not self.userInputActive then
+				-- GPS:dprint("isCourseAdjust="..tostring(isCourseAdjust));
 				if isCourseAdjust then
+					-- GPS:dprint("GPS_LRoffsetUC="..tostring(self.GPS_LRoffsetUC));
+					-- GPS:dprint("GPS_LRoffset="..tostring(self.GPS_LRoffset));
+					if self.GPS_LRoffsetUC == nil --[[or GPS:round(self.GPS_LRoffsetUC, 1) ~= self.GPS_LRoffset ]] then
+						self.GPS_LRoffsetUC = self.GPS_LRoffset;
+					end;
 					if (InputBinding.isPressed(InputBinding.GPS_OffsetLeft) and InputBinding.isPressed(InputBinding.GPS_OffsetRight)) or InputBinding.hasEvent(InputBinding.GPS_OffsetZero) then
-						self.GPS_LRoffset = 0;
+						-- GPS:dprint("Set offset to 0");
+						--self.GPS_LRoffset = 0;
+						self.GPS_LRoffsetUC = 0;
 						self.GPS_LRoffset_resetTimer = 800;
 						needPushEvent = true;
 					elseif self.GPS_LRoffset_resetTimer == 0 then
 						if InputBinding.isPressed(InputBinding.GPS_OffsetRight) then
-							self.GPS_LRoffset = self.GPS_LRoffset + .0008*dt;				
+							--self.GPS_LRoffset = self.GPS_LRoffset + .0008*dt;				
+							self.GPS_LRoffsetUC = self.GPS_LRoffsetUC + .0008*dt;
 							self.GPSshowTime = 800;
 							needPushEvent = true;
 						end;
 						
 						if InputBinding.isPressed(InputBinding.GPS_OffsetLeft) then
-							self.GPS_LRoffset = self.GPS_LRoffset - .0008*dt;				
+							--self.GPS_LRoffset = self.GPS_LRoffset - .0008*dt;				
+							self.GPS_LRoffsetUC = self.GPS_LRoffsetUC - .0008*dt;
 							self.GPSshowTime = 800;
 							needPushEvent = true;
 						end;		
 					end
-					if InputBinding.isPressed(InputBinding.GPS_WidthPlus) then
-								self.GPSWidth = self.GPSWidth + .00025*dt*(self.GPSWidth+1);
-						if self.GPSWidth > 50 then
-							self.GPSWidth = 50;
+
+					if self.GPSWidthUC == nil then
+					 self.GPSWidthUC = self.GPSWidth;
+					end;
+					if math.abs(self.GPSWidth - self.GPSWidthUC) > .2 then
+					 self.GPSWidthUC = self.GPSWidth;
+					end;
+
+					if InputBinding.isPressed(InputBinding.GPS_WidthPlus) and self.GPSWidthUC < 50 then
+						--self.GPSWidth = self.GPSWidth + .00025*dt*(self.GPSWidth+1);
+						local tempDiff = math.max(.00025*dt*(self.GPSWidthUC+1), 0.02);
+						self.GPSWidthUC = self.GPSWidthUC + tempDiff;
+						if self.GPSWidthUC > 50 then
+							self.GPSWidthUC = 50;
 						end;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
 						needPushEvent = true;
 					end;
 					
-					if InputBinding.isPressed(InputBinding.GPS_WidthMinus) then		
-						self.GPSWidth = self.GPSWidth - .00025*dt*(self.GPSWidth+1);
-						if self.GPSWidth < 0 then
-							self.GPSWidth = 0;
+					if InputBinding.isPressed(InputBinding.GPS_WidthMinus) and self.GPSWidthUC > 0.1 then		
+						--self.GPSWidth = self.GPSWidth - .00025*dt*(self.GPSWidth+1);
+						local tempDiff = math.max(.00025*dt*(self.GPSWidthUC+1), 0.02);
+						self.GPSWidthUC = self.GPSWidthUC - tempDiff;
+						if self.GPSWidthUC < 0.1 then
+							self.GPSWidthUC = 0.1;
 						end;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
 						needPushEvent = true;
 					end;
+					self.GPSWidth = GPS:round(self.GPSWidthUC, 1);
 					
 					--parallel shift calc
-					
-					if self.GPS_LRoffset > self.GPSWidth/2 then
-						self.GPS_LRoffset = self.GPSWidth/2;
+					self.GPS_maxLRoffset = self.GPSWidth/2;-- + 3; -- GPS_maxLROffset = 3m out of working area for i.e. Grimme SE260
+					if self.GPS_LRoffsetUC > self.GPS_maxLRoffset then
+						self.GPS_LRoffsetUC = self.GPS_maxLRoffset;
+					elseif self.GPS_LRoffsetUC < -self.GPS_maxLRoffset then
+						self.GPS_LRoffsetUC = -self.GPS_maxLRoffset;
 					end;
-					if self.GPS_LRoffset < -self.GPSWidth/2 then
-						self.GPS_LRoffset = -self.GPSWidth/2;
-					end;
+					self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
+					--print("input binding LR+: LRUC="..self.GPS_LRoffsetUC.."; LR="..self.GPS_LRoffset);
 					
 					if InputBinding.isPressed(InputBinding.GPS_shiftParallelRight) then 
 						local ppx,ppy,ppz = getWorldTranslation(self.GPSnode);
 						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*0.001*self.lhdZ0,ppy,ppz+dt*0.001*self.lhdX0);
 						local lr = self.GPSdirectionPlusMinus;
-						-- local lr = 1.0;
-						-- if xxx > 0 then
-							-- lr = -1.0;
-						-- end;
 						local lhdX0 = self.lhdX0
 						local lhdZ0 = self.lhdZ0
 						local diff = math.abs(lhdX0) - math.abs(lhdZ0)
@@ -591,10 +627,6 @@ function GPS:update(dt)
 						local ppx,ppy,ppz = getWorldTranslation(self.GPSnode);
 						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*0.001*self.lhdZ0,ppy,ppz+dt*0.001*self.lhdX0);
 						local lr = self.GPSdirectionPlusMinus;
-						-- local lr = 1.0;
-						-- if xxx > 0 then
-							-- lr = -1.0;
-						-- end;
 						local lhdX0 = self.lhdX0
 						local lhdZ0 = self.lhdZ0
 						local diff = math.abs(lhdX0) - math.abs(lhdZ0)
@@ -619,11 +651,11 @@ function GPS:update(dt)
 						self.lhdZ0 = swap;
 						needPushEvent = true;
 						self.GPSclickTimer = 2000;
-						--print("90")
 					end;	
 					
 					if InputBinding.hasEvent(InputBinding.GPS_InvertOffset_V3) then
-						self.GPS_LRoffset = -self.GPS_LRoffset;
+						self.GPS_LRoffsetUC = -self.GPS_LRoffsetUC;
+						self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
 						self.GPSshowTime = 800;
 						needPushEvent = true;
 					end
@@ -671,6 +703,7 @@ function GPS:update(dt)
 						self.GPS_slotName = "";
 					end;
 					self.GPSshowTime = 800;
+					self.GPSstoreKeyTimer = self.GPSstoreKeyTimerDiff*3; -- initial delay to assure intentional activation
 					needPushEvent = true;
 				end;
 				if InputBinding.isPressed(InputBinding.GPS_storePlus) then
@@ -681,7 +714,7 @@ function GPS:update(dt)
 						if GPS.Store[self.GPS_storeSlot] ~= nil and GPS.Store[self.GPS_storeSlot].GPS_slotName ~= nil then
 							self.GPS_slotName = GPS.Store[self.GPS_storeSlot].GPS_slotName
 						else
-							self.GPS_slotName = "";
+							self.GPS_storeSlot = math.max(self.GPS_storeSlot - 10, 1);
 						end;
 						self.GPSshowTime = 800;
 						needPushEvent = true;
@@ -711,7 +744,10 @@ function GPS:update(dt)
 							self.GPS_slotName = "";
 						end;
 						self.GPSshowTime = 800;
+						self.GPSstoreKeyTimer = self.GPSstoreKeyTimerDiff;
 						needPushEvent = true;
+					else
+						self.GPSstoreKeyTimer = math.max(self.GPSstoreKeyTimer - dt, 0);
 					end;
 				end;
 				
@@ -726,7 +762,6 @@ function GPS:update(dt)
 				if InputBinding.hasEvent(InputBinding.GPS_Load) then
 					GPS:loadCourse(self);
 				end
-				
 				
 				if InputBinding.hasEvent(InputBinding.GPS_NearestSteerable) then 
 					local nVehicles = table.getn(g_currentMission.steerables);
@@ -754,7 +789,8 @@ function GPS:update(dt)
 								self.lhX0 = nearestVehicle.lhX0
 								self.lhZ0 = nearestVehicle.lhZ0
 								self.GPSWidth = nearestVehicle.GPSWidth
-								self.GPS_LRoffset = nearestVehicle.GPS_LRoffset
+								self.GPS_LRoffsetUC = nearestVehicle.GPS_LRoffset
+								self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1)
 								self.GPS_blinkTime = 2500;
 								self.GPS_lastActionText = Steerable.GPS_TXT_LOAD
 								needPushEvent = true;
@@ -763,7 +799,6 @@ function GPS:update(dt)
 						
 					end
 				end
-				
 				
 				if InputBinding.hasEvent(InputBinding.GPS_AutoWidth) then 
 					local xmin = 0;
@@ -793,44 +828,29 @@ function GPS:update(dt)
 
 					local width = math.abs(xmax-xmin);
 					if width > .1 then
-						self.GPSWidth = width;
-						self.GPS_LRoffset = (xmin+xmax)/2;
-						if math.abs(self.GPS_LRoffset) < 0.1 then
-							self.GPS_LRoffset = 0;
+						self.GPSWidthUC = width;
+						self.GPSWidth = GPS:round(self.GPSWidthUC, 1);
+						self.GPS_LRoffsetUC = (xmin+xmax)/2;
+						if math.abs(self.GPS_LRoffsetUC) < 0.1 then
+							self.GPS_LRoffsetUC = 0;
 						end
-						
+	 	 	 	 
 						local offsetFactor = 1.0;
 						if self.GPSturnOffset then
 							offsetFactor = self.GPSdirectionPlusMinus;
 						end;
-						self.GPS_LRoffset = self.GPS_LRoffset*offsetFactor;
+						self.GPS_LRoffsetUC = self.GPS_LRoffsetUC*offsetFactor;
+						self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
 						
 						self.GPSshowTime = 800;
 						needPushEvent = true;
 					end				
 				end
 				
-				
-				
 				if InputBinding.hasEvent(InputBinding.GPS_OffsetAutoInvert) then
 					self.GPSturnOffset = not self.GPSturnOffset;
 					needPushEvent = true;
 				end;
-				
-				--
-				-- if InputBinding.isPressed(InputBinding.GPS_turnLimitPlus) then 
-					-- self.GPSturnLimit = self.GPSturnLimit + dt*0.001*.2;
-					-- needPushEvent = true;
-				-- end;
-				
-				-- if InputBinding.isPressed(InputBinding.GPS_turnLimitMinus) then 
-					-- self.GPSturnLimit = self.GPSturnLimit - dt*0.001*.2;
-					-- needPushEvent = true;
-				-- end;
-				
-				-- self.GPSturnLimit = Utils.clamp(self.GPSturnLimit,.2,1.0);
-				
-				
 				
 				if isCourseAdjust then --use up/down for course manipulation
 					if InputBinding.isPressed(InputBinding.GPS_turnLeft) then 
@@ -876,7 +896,7 @@ function GPS:update(dt)
 					end;
 					
 					if InputBinding.hasEvent(InputBinding.GPS_endFieldMode) then
-						--self.GPSautoStop   --self.GPSTurnInsteadOfAutoStop
+						--self.GPSautoStop 	--self.GPSTurnInsteadOfAutoStop
 						if self.GPSTurnInsteadOfAutoStop then
 							self.GPSTurnInsteadOfAutoStop = false;
 							self.GPSautoStop = false;
@@ -916,27 +936,23 @@ function GPS:update(dt)
 			if (InputBinding.hasEvent(InputBinding.GPS_Init) and not self.userInputActive) or self.GPSfirstrun then
 				needPushEvent = true;
 				self.GPSclickTimer = 3500;
-				--if self.GPSangleModeLS13 then --snap to terrain directions
-					local snapAngle = self:getDirectionSnapAngle();
-					snapAngle = math.max(snapAngle, math.pi/(g_currentMission.terrainDetailAngleMaxValue+1));
+				local snapAngle = self:getDirectionSnapAngle();
+				snapAngle = math.max(snapAngle, math.pi/(g_currentMission.terrainDetailAngleMaxValue+1));
 
-					local angleRad = Utils.getYRotationFromDirection(x, z)
-					angleRad = math.floor(angleRad / snapAngle + 0.5) * snapAngle;
+				local angleRad = Utils.getYRotationFromDirection(x, z)
+				angleRad = math.floor(angleRad / snapAngle + 0.5) * snapAngle;
 
-					local snapX, snapZ = Utils.getDirectionFromYRotation(angleRad);	
-					
-					self.lhdX0 = snapX
-					self.lhdZ0 = snapZ
-				-- else -- use precisely the current orientation of the tractor. LS11 mode for non-lego field layouts
-					-- self.lhdX0 = dX;
-					-- self.lhdZ0 = dZ;
-				-- end
+				local snapX, snapZ = Utils.getDirectionFromYRotation(angleRad);	
+				
+				self.lhdX0 = snapX
+				self.lhdZ0 = snapZ
 				local offFac = 1.0;
 				local lh = Utils.getNoNil(self.GPSdirectionPlusMinus,1.0);
 				if self.GPSturnOffset then
 					offFac = lh;
 				end;
 				
+				self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
 				self.lhX0 = px + offFac*lh*self.GPS_LRoffset*self.lhdZ0;
 				self.lhZ0 = pz - offFac*lh*self.GPS_LRoffset*self.lhdX0;	
 				
@@ -946,7 +962,7 @@ function GPS:update(dt)
 			local acosValue = dX*self.lhdX0 + dZ*self.lhdZ0;
 			acosValue = math.min(acosValue,1);
 			acosValue = math.max(acosValue,-1);
-			local diffAnglecos = math.deg(math.acos(acosValue));  -- acosValue only between 1 and -1 allowed for math.acos
+			local diffAnglecos = math.deg(math.acos(acosValue));	-- acosValue only between 1 and -1 allowed for math.acos
 					
 			local signDiffAngle = math.deg(math.asin(dX*self.lhdZ0 - dZ*self.lhdX0));
 			
@@ -968,36 +984,6 @@ function GPS:update(dt)
 			end;
 			self.GPSdirectionPlusMinus = lhDirectionPlusMinus;
 			
-			-------------------------------------------------------
-			-- if false then -- experimental courseplay coupling
-				-- local distance_nearest = 9999999999;
-				-- local k_nearest = nil;
-				-- for k,wp in pairs(self.Waypoints) do
-					-- if wp.cx~= nil then
-						-- local distance = math.sqrt((wp.cx-px)^2+(wp.cz-pz)^2);
-						
-						-- if distance < distance_nearest then
-							-- distance_nearest = distance;
-							-- k_nearest = k;
-						-- end;						
-					-- end;
-				-- end;
-				
-				-- local k_max = table.getn(self.Waypoints);
-				-- if k_nearest == k_max then
-					-- k_nearest = k_max -1;
-				-- end;
-				-- self.lhX0 = self.Waypoints[k_nearest].cx
-				-- self.lhZ0 = self.Waypoints[k_nearest].cz
-				-- self.lhdX0 = self.Waypoints[k_nearest+1].cx - self.Waypoints[k_nearest].cx
-				-- self.lhdZ0 = self.Waypoints[k_nearest+1].cz - self.Waypoints[k_nearest].cz
-				-- local length = Utils.vector2Length(self.lhdX0,self.lhdZ0);
-				-- self.lhdX0 = self.lhdX0/length;
-				-- self.lhdZ0 = self.lhdZ0/length;
-				-- print(k_nearest," ",self.lhdX0," ",self.lhdZ0)
-			-- end;
-			--------------------------end courseplay coupling-----------------
-						
 			if self.lastMovedDistance ~= 0  then
 			
 				if self.articulatedAxis == nil or true then
@@ -1007,42 +993,20 @@ function GPS:update(dt)
 						self.GPSmovingDirectionCnt = self.GPSmovingDirectionCnt - 1;
 					end;
 
-					
 					self.GPSmovingDirectionCnt = Utils.clamp(self.GPSmovingDirectionCnt,-4,8);
 				end;
-				
-					if self.GPSmovingDirectionCnt > 0 then
-						self.GPSmovingDirection = 1.0;
-						setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --put the steering node 2m in front of front axle
-					else
-						self.GPSmovingDirection = -1.0;
-						setTranslation(self.GPSnode,0,0,self.GPSzNodeReverse-3) --put the steering node 3m behind of back axle
-					end;
+				if self.GPSmovingDirectionCnt > 0 then
+					self.GPSmovingDirection = 1.0;
+					setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --put the steering node 2m in front of front axle
+				else
+					self.GPSmovingDirection = -1.0;
+					setTranslation(self.GPSnode,0,0,self.GPSzNodeReverse-3) --put the steering node 3m behind of back axle
+				end;
 					
-	
-					if self.GPSmovingDirectionCnt > 0 then
-						self.GPSmovingDirection = 1.0;							
-					else
-						self.GPSmovingDirection = -1.0;							
-					end;					
-					
-					
-					if self.GPSmovingDirection > 0 then
-						--self.GPSmovingDirection = 1.0;
-						setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --put the steering node 2m in front of front axle
-					else
-						--self.GPSmovingDirection = -1.0;
-						setTranslation(self.GPSnode,0,0,self.GPSzNodeReverse-3) --put the steering node 3m behind of back axle
-					end;
-					
-					
-				--end;
-				
 			else
 				--print("standstill")
 			end
-			
-			
+
 			if not isCourseAdjust and not self.userInputActive then --double use inputbindings for turn control
 				if InputBinding.hasEvent(InputBinding.GPS_shiftParallelRight) then
 					if self.GPSturningDirection < 0 then
@@ -1083,6 +1047,7 @@ function GPS:update(dt)
 					offsetFactor = lhDirectionPlusMinus;
 				end;
 				
+				self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
 				local angle_soll = K1 * (beta-lhDirectionPlusMinus*offsetFactor*(self.GPS_LRoffset + self.GPSsideCorrect + Utils.getNoNil(self.GPS_externalLRoffset,0))/self.GPSWidth) * self.GPSWidth*lhDirectionPlusMinus + self.GPSangleOffSet;
 				angle_soll = Utils.clamp(angle_soll,-angleLimit,angleLimit);
 				
@@ -1131,8 +1096,6 @@ function GPS:update(dt)
 					steer = Utils.clamp(steer,-self.GPSturnLimit,self.GPSturnLimit);
 				end;
 				
-				
-				
 				if true then
 					self.GPSsteeringOffset = steer;
 				else --damping 
@@ -1150,7 +1113,6 @@ function GPS:update(dt)
 			end
 			
 			self.GPStxt.printDistance = printDistance;
-			
 			
 			local x0 = px + self.GPSWidth*self.lhdZ0*(beta);
 			local z0 = pz - self.GPSWidth*self.lhdX0*(beta);
@@ -1232,8 +1194,6 @@ function GPS:update(dt)
 					end;
 					--print("disB2 ",tostring(dis))
 					
-					
-					
 					if dis > -2000 then
 						--self.GPSsideCorrect = self.GPSWidth/2-dis;
 						sideCorrectTarget = self.GPSWidth/2-dis;
@@ -1286,7 +1246,6 @@ function GPS:update(dt)
 					isSearchPointOnField = GPS:isField(xx,zz);						
 				end;
 				
-				
 				self.GPSdistance2FieldBorder = math.abs(dis);
 				
 				if self.GPSisActiveSteering then
@@ -1313,15 +1272,13 @@ function GPS:update(dt)
 									--startTurn = GPS:isField(xTest,zTest);
 								end;
 								if startTurn then
+									-- Start Autoturn
 									self.GPSisTurning = true;
 									self.GPSisTurningStartLane = self.GPSlaneNo;
 									self.GPSforceDirectionPlusMinus = -lhDirectionPlusMinus;
 									self.GPSautoStopDone = true;
 								elseif self.cruiseControl.state ~= 0 and self.GPSautoStop then
-									self.setCruiseControlState(self,0)
-									-- if not self.isServer then
-										-- g_client:getServerConnection():sendEvent(SteerableSetSpeedLevelEvent:new(self, 0));
-									-- end;
+									self.setCruiseControlState(self,0);
 									self.GPSautoStopDone = true;
 								end
 							end;
@@ -1487,11 +1444,11 @@ function GPS:update(dt)
 	end
 	
 	if needPushEvent then		
-        if g_server ~= nil then
-            g_server:broadcastEvent(GPS_Event:new(self, self.lhX0,self.lhZ0,self.lhdX0,self.lhdZ0,self.GPSWidth,self.GPS_LRoffset,self.GPSautoStop,self.GPSautoStopDistance,self.GPSTurnInsteadOfAutoStop,self.GPSturningMinFreeLanes,self.GPSturningDirection,self.GPSlaneNoOffset,self.GPSturnOffset), nil, nil, self);
-        else
-            g_client:getServerConnection():sendEvent(GPS_Event:new(self, self.lhX0,self.lhZ0,self.lhdX0,self.lhdZ0,self.GPSWidth,self.GPS_LRoffset,self.GPSautoStop,self.GPSautoStopDistance,self.GPSTurnInsteadOfAutoStop,self.GPSturningMinFreeLanes,self.GPSturningDirection,self.GPSlaneNoOffset,self.GPSturnOffset));
-        end;	
+	 	 	if g_server ~= nil then
+	 	 	 	 g_server:broadcastEvent(GPS_Event:new(self, self.lhX0,self.lhZ0,self.lhdX0,self.lhdZ0,self.GPSWidth,self.GPS_LRoffset,self.GPSautoStop,self.GPSautoStopDistance,self.GPSTurnInsteadOfAutoStop,self.GPSturningMinFreeLanes,self.GPSturningDirection,self.GPSlaneNoOffset,self.GPSturnOffset), nil, nil, self);
+	 	 	else
+	 	 	 	 g_client:getServerConnection():sendEvent(GPS_Event:new(self, self.lhX0,self.lhZ0,self.lhdX0,self.lhdZ0,self.GPSWidth,self.GPS_LRoffset,self.GPSautoStop,self.GPSautoStopDistance,self.GPSTurnInsteadOfAutoStop,self.GPSturningMinFreeLanes,self.GPSturningDirection,self.GPSlaneNoOffset,self.GPSturnOffset));
+	 	 	end;	
 	end
 end;
 
@@ -1567,8 +1524,6 @@ function GPS:draw()
 					end;
 				end;
 				
-				
-				
 				setTextAlignment(RenderText.ALIGN_LEFT); 
 				setTextBold(false);
 				setTextColor(.8,.8,.8,.9);
@@ -1582,7 +1537,6 @@ function GPS:draw()
 							doTxt = self[txt.boolean];
 						end;
 					end;
-					
 					
 					if doTxt then
 						if txt.alignCenter then
@@ -1609,7 +1563,6 @@ function GPS:draw()
 					setTextBold(false);
 				end;
 
-				
 				for b,button in pairs(GPS.GPS_HUDfields[mode].buttons) do
 					if button.pressedOverlay~= nil then
 						if InputBinding.isPressed(button.binding) then
@@ -1663,21 +1616,6 @@ function GPS:getSaveAttributesAndNodes(nodeIdent)
 end;
 
 
-
--- function driveControl:postLoad(savegame) 
-
-	-- if savegame ~= nil then
-		-- self.driveControl.fourWDandDifferentials.fourWheel = Utils.getNoNil(getXMLBool(savegame.xmlFile, savegame.key.."#fourWheel"),false);
-		-- self.driveControl.fourWDandDifferentials.diffLockFront = Utils.getNoNil(getXMLBool(savegame.xmlFile, savegame.key.."#diffLockFront"),false);
-		-- self.driveControl.fourWDandDifferentials.diffLockBack = Utils.getNoNil(getXMLBool(savegame.xmlFile, savegame.key.."#diffLockBack"),false);
-	-- end
-
--- end;
-
-
-
-
-
 function GPS:postLoad(savegame)	
 	if savegame ~= nil and not savegame.resetVehicles then
 		local x = getXMLFloat(savegame.xmlFile, savegame.key.."#GPS_x");
@@ -1694,7 +1632,9 @@ function GPS:postLoad(savegame)
 			local w = getXMLFloat(savegame.xmlFile, savegame.key.."#GPS_Width");
 			self.GPSWidth = w;
 			local o = getXMLFloat(savegame.xmlFile, savegame.key.."#GPS_Offset");
-			self.GPS_LRoffset = Utils.getNoNil(o,0); -- o,0 
+			self.GPS_LRoffsetUC = Utils.getNoNil(o,0); -- o,0 
+			self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
+	 	 
 			local n = getXMLString(savegame.xmlFile, savegame.key.."#GPS_Name");
 			self.GPS_slotName = Utils.getNoNil(n,"");
 						
@@ -1739,67 +1679,6 @@ function GPS:postLoad(savegame)
 end;
 
 
-
--- function GPS:loadFromAttributesAndNodes(xmlFile, key, resetVehicles)
-	-- if not resetVehicles then
-		-- local x = getXMLFloat(self.xmlFile, key.."#GPS_x");
-		-- if x ~= nil then
-			-- self.lhX0 = x;
-			
-			-- local z = getXMLFloat(self.xmlFile, key.."#GPS_z");
-			-- self.lhZ0 = z;
-
-			-- local dx = getXMLFloat(self.xmlFile, key.."#GPS_dx");
-			-- self.lhdX0 = dx;
-			-- local dz = getXMLFloat(self.xmlFile, key.."#GPS_dz");
-			-- self.lhdZ0 = dz;
-			-- local w = getXMLFloat(self.xmlFile, key.."#GPS_Width");
-			-- self.GPSWidth = w;
-			-- local o = getXMLFloat(self.xmlFile, key.."#GPS_Offset");
-			-- self.GPS_LRoffset = Utils.getNoNil(o,0); -- o,0 
-			-- local n = getXMLString(self.xmlFile, key.."#GPS_Name");
-			-- self.GPS_slotName = Utils.getNoNil(n,"");
-						
-			-- self.GPSfirstrun = false;
-			
-			-- if GPS.Store == nil then
-				-- GPS.Store = {};
-			-- end;
-			
-			-- local inventory = getXMLString(self.xmlFile, key.."#GPSstoreInv");
-
-			-- if inventory ~= nil then
-				-- local storeKeys = Utils.splitString(" ", inventory);
-				-- for k,storeKey in pairs(storeKeys) do
-					-- if tonumber(storeKey) ~= nil then
-						-- if GPS.Store[tonumber(storeKey)] == nil then
-							-- GPS.Store[tonumber(storeKey)] = {};
-						-- end;
-						-- local fieldname = '#GPSstore'..tostring(storeKey);
-						
-						-- local x = getXMLFloat(xmlFile, key..fieldname..'_x');					
-						-- GPS.Store[tonumber(storeKey)].lhX0 = x;
-						-- local z = getXMLFloat(xmlFile, key..fieldname..'_z');					
-						-- GPS.Store[tonumber(storeKey)].lhZ0 = z;
-						-- local dx = getXMLFloat(xmlFile, key..fieldname..'_dx');					
-						-- GPS.Store[tonumber(storeKey)].lhdX0 = dx;
-						-- local dz = getXMLFloat(xmlFile, key..fieldname..'_dz');					
-						-- GPS.Store[tonumber(storeKey)].lhdZ0 = dz;
-						-- local w = getXMLFloat(xmlFile, key..fieldname..'_w');					
-						-- GPS.Store[tonumber(storeKey)].GPSWidth = w;
-						-- local o = getXMLFloat(xmlFile, key..fieldname..'_o');					
-						-- GPS.Store[tonumber(storeKey)].GPS_LRoffset = o;
-						-- local n = getXMLString(xmlFile, key..fieldname..'_n');					
-						-- GPS.Store[tonumber(storeKey)].GPS_slotName = Utils.getNoNil(n,"");
-					-- end;
-				-- end;
-			-- end;
-		-- end;
-	
-	-- end;
-	-- return BaseMission.VEHICLE_LOAD_OK;
--- end
-
 function GPS:delete()	
 end
 
@@ -1828,6 +1707,7 @@ function GPS.xMinMaxAI(self,object,xmin,xmax)
 	
 	return xmin, xmax;
 end;
+
 
 function GPS.xMinMaxAreas(self,areas,xmin,xmax)
 
@@ -1867,24 +1747,12 @@ function GPS.xMinMaxAreas(self,areas,xmin,xmax)
 	return xmin, xmax;
 end
 
+
 function GPS:isField(x,z) --new method supplied by Koper. Thanks! :)
 	--return (getDensityAtWorldPos(g_currentMission.terrainDetailId, x, z) % 16) > 0; 
 	return (getDensityAtWorldPos(g_currentMission.terrainDetailId, x, 0, z) % 16) > 0; 
 	
 end; 
-
--- old function, looks like this caused the fps-problems.
--- function GPS:isField(x,z)
-	-- local cultivatorChannel = Utils.getDensity(g_currentMission.terrainDetailId, g_currentMission.cultivatorChannel, x, z, x, z, x, z);
-	-- local ploughChannel = Utils.getDensity(g_currentMission.terrainDetailId, g_currentMission.ploughChannel, x, z, x, z, x, z);
-	-- local sowingChannel = Utils.getDensity(g_currentMission.terrainDetailId, g_currentMission.sowingChannel, x, z, x, z, x, z);
-	-- local potatoeChannel = Utils.getDensity(g_currentMission.terrainDetailId, g_currentMission.sowingWidthChannel, x, z, x, z, x, z);
-	-- if cultivatorChannel > 0 or ploughChannel > 0 or sowingChannel > 0 or potatoeChannel > 0 then
-		-- return true;
-	-- else
-		-- return false;
-	-- end;
--- end;
 
 
 function GPS:newMouseEvent(superFunc,posX, posY, isDown, isUp, button)
@@ -1902,11 +1770,13 @@ function GPS:newMouseEvent(superFunc,posX, posY, isDown, isUp, button)
 	end;
 end;
 
+
 function GPS:checkIsDedi()
 	return g_dedicatedServerInfo ~= nil;
 	--local pixelX, pixelY = getScreenModeInfo(getScreenMode());
 	--return pixelX*pixelY < 1;
 end;
+
 
 function GPS:prepareHUD()
 	
@@ -1917,13 +1787,13 @@ function GPS:prepareHUD()
 	GPS.Config = GPS:loadHUDConfig()
 	--print("HUD size: "..tostring(hudSize))
 	
-	local yFields = 0.01
-	local xFields = 0.01;
+	local yFields = 0.0088
+	local xFields = 0.0185;
 	--yFields = (1080-818)/1080;
 	
 	local Nfields = 2;
 	local aspectFields = {0.5,2}; -- {1,2} means background 1 is 256x256 and background 2 is 256x512
-	local PDAoffset = .45* 0.5625 * 1.3333333333333333;-- - 0.8*yFields;
+	local PDAoffset = .45* 0.5625 * 1.3333333333333333 ;-- - 0.8*yFields;
 	
 	local pixelX, pixelY = getScreenModeInfo(getScreenMode());
 	
@@ -1972,7 +1842,7 @@ function GPS:prepareHUD()
 				varStr = {"GPS_HUD_distanceStr","GPS_HUD_OffsetStr","GPS_HUD_rowStr","GPSWidth","GPSautoStopDistance","GPSturningMinFreeLanes","GPScurrentToolTip"};
 				txtSize = {12,12,16,14,12,16,12};
 				boolean = {nil,nil,nil,nil,"GPSautoStop",nil,nil};
-				invert =  {nil,nil,nil,nil,false,nil,nil};
+				invert = {nil,nil,nil,nil,false,nil,nil};
 				alignCenter = {true,true,false,true,true,false,true};
 				boldBoolean = {nil,nil,nil,nil,nil,nil,nil};
 			elseif k==2 then --big control screen
@@ -1982,7 +1852,7 @@ function GPS:prepareHUD()
 				varStr = {"GPS_storeSlot"};
 				txtSize = {16};
 				boolean = {nil};
-				invert =  {nil};
+				invert = {nil};
 				alignCenter = {true};
 				boldBoolean = {"GPS_HUD_Slot_exists"};
 			end;
@@ -2043,7 +1913,7 @@ function GPS:prepareHUD()
 			if Nfiles > 0 then
 				for o=1,Nfiles do
 					local newOv = {};
-					local path =  Utils.getFilename("HUD/"..files[o], GPS_directory);
+					local path = Utils.getFilename("HUD/"..files[o], GPS_directory);
 					newOv.overlay = Overlay:new("overlay"..tostring(k).."."..tostring(o), path, xFields, yFields+yOff, width, height_0*aspectFields[k]); 
 					newOv.Ncond = Ncond[o];
 					newOv.cond1 = cond1[o];
@@ -2080,7 +1950,7 @@ function GPS:prepareHUD()
 				button.binding = bindings[b];
 				button.modifier = modifier[b];
 				if pressedFiles[b]~= nil then
-					local path =  Utils.getFilename("HUD/"..pressedFiles[b], GPS_directory);
+					local path = Utils.getFilename("HUD/"..pressedFiles[b], GPS_directory);
 					button.pressedOverlay = Overlay:new("pressed"..tostring(k).."."..tostring(b), path, xFields, yFields+yOff, width, height_0*aspectFields[k]); 
 				end;
 				button.toolTip = toolTips[b];
@@ -2137,11 +2007,13 @@ function GPS:writeStream(streamId, connection)
 			streamWriteFloat32(streamId, item.lhX0);
 			streamWriteFloat32(streamId, item.lhZ0);
 			streamWriteFloat32(streamId, item.GPSWidth);
+			streamWriteFloat32(streamId, item.GPS_LRoffsetUC);
 			streamWriteFloat32(streamId, item.GPS_LRoffset);
 			streamWriteString(streamId, item.GPS_slotName);			
 		end;	
 	end;
 end;
+
 
 function GPS:readStream(streamId, connection)
 	if streamReadBool(streamId) then
@@ -2151,6 +2023,7 @@ function GPS:readStream(streamId, connection)
 		self.lhdZ0 = streamReadFloat32(streamId);
 	end;
 	self.GPSWidth = streamReadFloat32(streamId);
+	self.GPS_LRoffsetUC = streamReadFloat32(streamId);
 	self.GPS_LRoffset = streamReadFloat32(streamId);
 	self.GPS_slotName = streamReadString(streamId);
 
@@ -2161,7 +2034,6 @@ function GPS:readStream(streamId, connection)
 	self.GPSturningDirection = streamReadFloat32(streamId);
 	self.GPSlaneNoOffset = streamReadFloat32(streamId);
 	self.GPSturnOffset = streamReadBool(streamId);
-	
 	
 	local nStore = streamReadUIntN(streamId, 8);
 	if nStore > 0 then
@@ -2176,6 +2048,7 @@ function GPS:readStream(streamId, connection)
 			GPS.Store[slot].lhX0 = streamReadFloat32(streamId);
 			GPS.Store[slot].lhZ0 = streamReadFloat32(streamId);
 			GPS.Store[slot].GPSWidth = streamReadFloat32(streamId);
+			GPS.Store[slot].GPS_LRoffsetUC = streamReadFloat32(streamId);	
 			GPS.Store[slot].GPS_LRoffset = streamReadFloat32(streamId);	
 			GPS.Store[slot].GPS_slotName = streamReadString(streamId);		
 		end;
@@ -2187,7 +2060,6 @@ function GPS:readStream(streamId, connection)
 		self.GPSfirstrun = false;
 	end;
 end;
-
 
 
 function GPS:transferMouse2InputBinding()
@@ -2208,6 +2080,7 @@ function GPS:transferMouse2InputBinding()
 		GPS.mouse2InputBindingsLastTime = g_currentMission.time;
 	end;
 end;
+
 
 function GPS:loadHUDConfig()
 	
@@ -2306,6 +2179,7 @@ function GPS:saveCourse(self, slot, storeTable, noEventSend)
 			GPS.Store[slot].lhX0 = self.lhX0;
 			GPS.Store[slot].lhZ0 = self.lhZ0;
 			GPS.Store[slot].GPSWidth = self.GPSWidth;
+			GPS.Store[slot].GPS_LRoffsetUC = self.GPS_LRoffset
 			GPS.Store[slot].GPS_LRoffset = self.GPS_LRoffset
 			GPS.Store[slot].GPS_slotName = self.GPS_slotName;
 		end;
@@ -2324,6 +2198,7 @@ function GPS:saveCourse(self, slot, storeTable, noEventSend)
 		end;	
 	end		
 end;
+
 
 function GPS:deleteCourse(self, slot, noEventSend)
 	if GPS.Store == nil then
@@ -2347,6 +2222,7 @@ function GPS:deleteCourse(self, slot, noEventSend)
 	end;	
 end;					
 
+
 function GPS:loadCourse(self)
 	if GPS.Store ~= nil then
 		self.GPSfirstrun = false
@@ -2356,7 +2232,9 @@ function GPS:loadCourse(self)
 			self.lhX0 = GPS.Store[self.GPS_storeSlot].lhX0;
 			self.lhZ0 = GPS.Store[self.GPS_storeSlot].lhZ0;
 			self.GPSWidth = GPS.Store[self.GPS_storeSlot].GPSWidth;
-			self.GPS_LRoffset = GPS.Store[self.GPS_storeSlot].GPS_LRoffset
+			self.GPS_LRoffsetUC = GPS.Store[self.GPS_storeSlot].GPS_LRoffset
+			self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
+
 			if GPS.Store[self.GPS_storeSlot].GPS_slotName ~= nil then
 				self.GPS_slotName = GPS.Store[self.GPS_storeSlot].GPS_slotName
 			end;
@@ -2371,6 +2249,7 @@ function GPS:userInput(self)
 	setTextColor(1,1,1,1);
 	renderText(0.4, 0.9, 0.02, self.userInputMessage .. self.GPS_slotName);
 end
+
 
 function GPS:keyInput(self, unicode)
 	if 31 < unicode and unicode < 127 then
@@ -2396,8 +2275,16 @@ function GPS:keyInput(self, unicode)
 	end;
 end;
 
+
 function GPS:handleUserInput(self)
 	GPS:saveCourse(self, self.GPS_storeSlot);
 	self.userInputActive = false;
 	self.userInputMessage = nil;
+end;
+
+
+function GPS:dprint(text)
+	local timestamp = getDate( "%H:%M:%S")
+	print("GPS debug "..timestamp.." ("..debug.getinfo(2, 'l').currentline.."): "..text);
 end
+

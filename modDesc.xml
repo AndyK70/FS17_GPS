@@ -1,19 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no" ?>
 <modDesc descVersion="31">
-   <author>upsideDown</author>
+   <author>upsideDown, AndyK70</author>
     <title>
-		<en>GPS-Mod</en>
-        <de>GPS-Mod</de> 
-		<fr>GPS-Mod</fr>
+		<en>GPS-Mod for FS17</en>
+        <de>GPS-Mod für FS17</de> 
+		<fr>GPS-Mod pour FS17</fr>
     </title>
     <description>
-        <en><![CDATA[GPS-Mod]]></en>
-		<de><![CDATA[GPS-Mod]]></de>
-		<fr><![CDATA[GPS-Mod]]></fr>
+        <en><![CDATA[GPS-Mod for FS17]]></en>
+		<de><![CDATA[GPS-Mod für FS17]]></de>
+		<fr><![CDATA[GPS-Mod pour FS17]]></fr>
  	</description>
     <multiplayer supported="true"/>   
 	<iconFilename>store.dds</iconFilename>
-	<version>5.01</version>
+	<version>5.02.002</version>
 	<l10n>
 		<!-- Buttons -->
 		<text name="input_GPS_SteeringOnOff">             <en>GPS activ/passiv</en><de>GPS aktiv/passiv</de><fr>GPS actif/passif</fr></text>		
