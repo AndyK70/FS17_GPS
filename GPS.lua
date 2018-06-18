@@ -7,7 +7,6 @@
 	ToDo:	setting the auto stop point to the implement work area
 			separating GPS courses from vehicle attributes to own GPSSettings.xml
 			bringing GPS vehicle settings from vehicle root node to GPS node
-			
 			turn to designated lane no. even if turn radius is bigger than lane width not going to next lane
 --]]
 -- V5.0 upsidedown 16-10-27: conversion to LS17, new graphics, naming of courses removed
