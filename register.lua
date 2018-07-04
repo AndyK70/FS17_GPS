@@ -5,7 +5,7 @@ GPS_Register = {};
 function GPS_Register:loadMap(name)
 	if self.GPS_register_firstRun == nil then
 		self.GPS_register_firstRun = false;
-		print("--- loading GPS mod V5.01 --- (by upsidedown)")
+		print("--- loading GPS mod V5.02.003 --- (by upsidedown, extended by AndyK70)")
 		
 		for k, v in pairs(VehicleTypeUtil.vehicleTypes) do
 			if v ~= nil then
