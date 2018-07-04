@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
 <modDesc descVersion="31">
    <author>upsideDown, AndyK70</author>
     <title>
@@ -13,7 +13,7 @@
  	</description>
     <multiplayer supported="true"/>   
 	<iconFilename>store.dds</iconFilename>
-	<version>5.02.002</version>
+	<version>5.02.003</version>
 	<l10n>
 		<!-- Buttons -->
 		<text name="input_GPS_SteeringOnOff">             <en>GPS activ/passiv</en><de>GPS aktiv/passiv</de><fr>GPS actif/passif</fr></text>		
