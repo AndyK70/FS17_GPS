@@ -1,11 +1,13 @@
 --
 -- GPS with steering assistance
 --[[
-	V5.02.003 AndyK70 WIP:		turn to designated lane no. even if turn radius is bigger than lane width not going to next lane
+	V5.02.005 AndyK70 WIP:		setting the auto stop point to the implement work area
+	V5.02.004 AndyK70 			bugfix auto work width
+	V5.02.003 AndyK70 			turn to designated lane no. even if turn radius is bigger than lane width not going to next lane
 	V5.02.002 AndyK70			no GPS deactivation when switching to a different vehicle with no GPS active and steering and coming back to first vehicle
 	V5.02.001 AndyK70 18-05-14: shifting course now always at 1 decimal precision
 			
-	ToDo:	setting the auto stop point to the implement work area
+	ToDo:	
 			separating GPS courses from vehicle attributes to own GPSSettings.xml
 			bringing GPS vehicle settings from vehicle root node to GPS node
 			
@@ -203,7 +205,6 @@ function GPS:load(xmlFile)
 		zNodeForward = math.max(zNodeForward,z)
 		zNodeReverse = math.min(zNodeReverse,z)		 
 	end;
-	-- GPS:dprint(string.format("ID=%d; zNodeForward=% 2.2f; zNodeReverse=% 2.2f", self.id, zNodeForward, zNodeReverse));
 	
 	self.GPSzNodeForward = zNodeForward;
 	self.GPSzNodeReverse = zNodeReverse;
@@ -1754,14 +1755,14 @@ function GPS.xMinMaxAI(self,object,xmin,xmax, axis)
 		local lx2,ly2,lz2 = worldToLocal(self.GPSnode,x2,y2,z2)		
 		
 		if axis == 1 then
-			xmin = math.min(lx1, lx2);
-			xmax = math.max(lx1, lx2)
+			xmin = math.min(xmin, lx1, lx2);
+			xmax = math.max(xmax, lx1, lx2)
 		elseif axis == 2 then
-			xmin = math.min(ly1, ly2);
-			xmax = math.max(ly1, ly2);
+			xmin = math.min(xmin, ly1, ly2);
+			xmax = math.max(xmax, ly1, ly2);
 		elseif axis == 3 then
-			xmin = math.min(lz1, lz2);
-			xmax = math.max(lz1, lz2);
+			xmin = math.min(xmin, lz1, lz2);
+			xmax = math.max(xmax, lz1, lz2);
 		end;
 	end;
 	
@@ -1784,14 +1785,14 @@ function GPS.xMinMaxAreas(self,areas,xmin,xmax,axis)
 				local lx3,ly3,lz3 = worldToLocal(self.GPSnode,x3,y3,z3)
 				
 				if axis == 1 then
-					xmin = math.min(lx1, lx2, lx3);
-					xmax = math.max(lx1, lx2, lx3);
+					xmin = math.min(xmin, lx1, lx2, lx3);
+					xmax = math.max(xmax, lx1, lx2, lx3);
 				elseif axis == 2 then
-					xmin = math.min(ly1, ly2, ly3);
-					xmax = math.max(ly1, ly2, ly3);
+					xmin = math.min(xmin, ly1, ly2, ly3);
+					xmax = math.max(xmax, ly1, ly2, ly3);
 				elseif axis == 3 then
-					xmin = math.min(lz1, lz2, lz3);
-					xmax = math.max(lz1, lz2, lz3);
+					xmin = math.min(xmin, lz1, lz2, lz3);
+					xmax = math.max(xmax, lz1, lz2, lz3);
 				end;
 			end;
 		end;
