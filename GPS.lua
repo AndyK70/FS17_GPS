@@ -180,6 +180,8 @@ function GPS:load(xmlFile)
 	if self.GPSnode == nil then
 		self.GPSnode = createTransformGroup("GPS_Node");
 		link(GPSbaseNode,self.GPSnode);
+		self.GPSsearchnode = createTransformGroup("GPS_SearchNode");
+		link(GPSbaseNode, self.GPSsearchnode);
 	end;
 	
 	if GPS.Store == nil then
@@ -209,6 +211,7 @@ function GPS:load(xmlFile)
 	self.GPSzNodeForward = zNodeForward;
 	self.GPSzNodeReverse = zNodeReverse;
 	setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --initial setting
+	setTranslation(self.GPSsearchnode,0,0,self.GPSzNodeReverse-5) --initial setting
 	
 	self.GPSlaneNo =0;
 	self.GPSlaneNoOffset = 0;
@@ -415,9 +418,9 @@ function GPS:update(dt)
 		self.GPS_HUD_distanceStr = "--	";		
 		if self.GPSdistance2FieldBorder ~= nil then
 			if self.GPSautoStop and self.GPSTurnInsteadOfAutoStop then
-				self.GPS_HUD_distanceStr = string.format("%2.1f",self.GPSdistance2FieldBorder - self.GPSautoStopDistance);
+				self.GPS_HUD_distanceStr = string.format("%2.1f (%2.1f)",self.GPSdistance2FieldBorder - self.GPSautoStopDistance, self.GPStotalDis2FieldBorder - self.GPSautoStopDistance);
 			else
-				self.GPS_HUD_distanceStr = string.format("%2.1f",self.GPSdistance2FieldBorder);
+				self.GPS_HUD_distanceStr = string.format("%2.1f (%2.1f)",self.GPSdistance2FieldBorder, self.GPStotalDis2FieldBorder);
 			end;
 		end;
 
@@ -445,7 +448,9 @@ function GPS:update(dt)
 			local sDirection = "";
 			self.GPSdirection = GPS:getDirection(self); -- get actual direction in degree, 0=north, 90=east, ...
 			if self.GPStargetDirection == nil then self.GPStargetDirection = self.GPSdirection; end;
-			if self.GPSisTurningTargetLane == nil then self.GPSisTurningTargetLane = self.GPSlaneNo; end;
+			if self.GPSisTurningTargetLane == nil then 
+				self.GPSisTurningTargetLane = self.GPSlaneNo; 
+			end;
 			self.GPSdiffdegree = GPS:getDiffDegree(self.GPSdirection, self.GPStargetDirection);
 			
 			local iX, iY, iTxtSize = 0.02, 0.5, 0.015;
@@ -453,11 +458,11 @@ function GPS:update(dt)
 			local sHeadWidth = getTextWidth(iTxtSize, sHead);
 			local sBlankWidth = getTextWidth(iTxtSize, "_");
 			local sDirection = string.format("% 6d\n% 6.1f\n% 6.1f\n% 6.1f\n% 6d\n% 6d\n% 6.1f", self.GPSisTurningTargetLane, self.GPSdirection, self.GPStargetDirection, self.GPSdiffdegree, Utils.getNoNil(self.GPSmaxLanesAway, -1), Utils.getNoNil(self.GPSlanesAway, -1), Utils.getNoNil(self.GPSsteeringOffset, 0));
-			-- renderText(iX, iY, iTxtSize, sHead);
-			-- renderText(iX + sHeadWidth + sBlankWidth, iY, iTxtSize, "=\n=\n=\n=\n=\n=\n=")
-			-- setTextAlignment(RenderText.ALIGN_RIGHT);
-			-- renderText(iX + sHeadWidth + sBlankWidth*3  + getTextWidth(iTxtSize, "_______"), iY, iTxtSize, sDirection);
-			-- setTextAlignment(RenderText.ALIGN_LEFT);
+			renderText(iX, iY, iTxtSize, sHead);
+			renderText(iX + sHeadWidth + sBlankWidth, iY, iTxtSize, "=\n=\n=\n=\n=\n=\n=")
+			setTextAlignment(RenderText.ALIGN_RIGHT);
+			renderText(iX + sHeadWidth + sBlankWidth*3  + getTextWidth(iTxtSize, "_______"), iY, iTxtSize, sDirection);
+			setTextAlignment(RenderText.ALIGN_LEFT);
 		else
 			self.GPSdirection = nil;
 		end;
@@ -999,14 +1004,15 @@ function GPS:update(dt)
 				end;
 				if self.GPSmovingDirectionCnt > 0 then
 					self.GPSmovingDirection = 1.0;
-					setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2) --put the steering node 2m in front of front axle
+					setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2); --put the steering node 2m in front of front axle
 				else
 					self.GPSmovingDirection = -1.0;
-					setTranslation(self.GPSnode,0,0,self.GPSzNodeReverse-3) --put the steering node 3m behind of back axle
+					setTranslation(self.GPSnode,0,0,self.GPSzNodeReverse-3); --put the steering node 3m behind of back axle
 				end;
 					
 			else
 				--print("standstill")
+				setTranslation(self.GPSnode,0,0,self.GPSzNodeForward+2);
 			end;
 
 			if not isCourseAdjust and not self.userInputActive then --double use inputbindings for turn control
@@ -1273,6 +1279,7 @@ function GPS:update(dt)
 			end;
 			
 				
+			-- if isField or self.GPStotalDis2FieldBorder > 1.0 then
 			if isField then
 				local dis = 0;
 				local isSearchPointOnField = true;
@@ -1283,23 +1290,56 @@ function GPS:update(dt)
 					stepB = -stepB;
 				end;
 				
-				while isSearchPointOnField do --search fast forward (1m steps)
-					dis = dis + stepA;
-					local xx = x0 + dis*lhDirectionPlusMinus*self.lhdX0;
-					local zz = z0 + dis*lhDirectionPlusMinus*self.lhdZ0;
-					isSearchPointOnField = GPS:isField(xx,zz);						
-					if math.abs(dis) > 2000 then
-						break;
-					end;						
+				if isField then
+					while isSearchPointOnField do --search fast forward (1m steps)
+						dis = dis + stepA;
+						local xx = x0 + dis*lhDirectionPlusMinus*self.lhdX0;
+						local zz = z0 + dis*lhDirectionPlusMinus*self.lhdZ0;
+						isSearchPointOnField = GPS:isField(xx,zz);						
+						if math.abs(dis) > 2000 then
+							break;
+						end;						
+					end;
+					while not isSearchPointOnField do --then backtrace in small 5cm steps
+						dis = dis + stepB;
+						local xx = x0 + dis*lhDirectionPlusMinus*self.lhdX0;
+						local zz = z0 + dis*lhDirectionPlusMinus*self.lhdZ0;
+						isSearchPointOnField = GPS:isField(xx,zz);						
+					end;
+					
+					self.GPSdistance2FieldBorder = math.abs(dis);
+
+					---[[	Neue Berechnung anhand von self.GPSsearchnode
+					--		Differenz von GPSnode und GPSsearchnode nehmen
+					--		und zu dis addieren = gesamtdis
+					--		weiterfahren solange: gesamtdis > 1
+					local _, _, disZ = localToLocal(self.GPSnode, self.GPSsearchnode, 0, 0, 0);
+					self.GPStotalDis2FieldBorder = math.abs(disZ) + self.GPSdistance2FieldBorder;
+				else
+					-- stepA = 1.0; -- immer noch gültig und mit korrekten Vorzeichen;
+					-- stepB = -.05;
+					local sx, _, sz = getWorldTranslation(self.GPSsearchnode);
+					local isSearchPointOnField2 = GPS:isField(sx, sz);
+					
+					while isSearchPointOnField2 do 
+						dis = dis + stepA;
+						if math.abs(dis) > 2000 then -- über Map hinweg, abbruch!
+							isSearchPointOnField = false;
+							break;
+						end;
+						local xx = sx + dis*lhDirectionPlusMinus*self.lhdX0;
+						local zz = sz + dis*lhDirectionPlusMinus*self.lhdZ0;
+						isSearchPointOnField = GPS:isField(xx, zz);
+					end;
+					while dis < 2000 and not isSearchPointOnField do
+						dis = dis + stepB;
+						local xx = sx + dis*lhDirectionPlusMinus*self.lhdX0;
+						local zz = sz + dis*lhDirectionPlusMinus*self.lhdZ0;
+						isSearchPointOnField = GPS:isField(xx, zz);
+					end;
+					self.GPStotalDis2FieldBorder = math.abs(dis);
+					--]]								
 				end;
-				while not isSearchPointOnField do --then backtrace in small 5cm steps
-					dis = dis + stepB;
-					local xx = x0 + dis*lhDirectionPlusMinus*self.lhdX0;
-					local zz = z0 + dis*lhDirectionPlusMinus*self.lhdZ0;
-					isSearchPointOnField = GPS:isField(xx,zz);						
-				end;
-				
-				self.GPSdistance2FieldBorder = math.abs(dis);
 				
 				if self.GPSisActiveSteering then
 					-- sounds
@@ -1319,8 +1359,10 @@ function GPS:update(dt)
 								if self.GPSTurnInsteadOfAutoStop then--lets check if the next lane is still valid (we are on a field, else there would be no end2field distance)
 									-- local xTest = x0 - 1.5*self.GPSWidth*lhDirectionPlusMinus*self.lhdZ0*self.GPSturningDirection - 6*lhDirectionPlusMinus*self.lhdX0;
 									-- local zTest = z0 - 1.5*self.GPSWidth*lhDirectionPlusMinus*self.lhdX0*self.GPSturningDirection - 6*lhDirectionPlusMinus*self.lhdZ0;
-									local xxx,yyy,zzz = getTranslation(self.GPSnode);
-									local xxxW,yyyW,zzzW = localToWorld(self.GPSnode,xxx + 1.5*self.GPSWidth*self.GPSturningDirection,yyy,zzz-6)
+									-- local xxx,yyy,zzz = getTranslation(self.GPSnode);
+									local xxx,yyy,zzz = getTranslation(self.GPSsearchnode);
+									-- local xxxW,yyyW,zzzW = localToWorld(self.GPSnode,xxx + 1.5*self.GPSWidth*self.GPSturningDirection,yyy,zzz-6)
+									local xxxW,yyyW,zzzW = localToWorld(self.GPSsearchnode,xxx + self.GPSturningDirection*self.GPSWidth*(self.GPSturningMinFreeLanes+1),yyy,zzz);
 									startTurn = GPS:isField(xxxW,zzzW);
 									--startTurn = GPS:isField(xTest,zTest);
 								end;
@@ -1358,6 +1400,7 @@ function GPS:update(dt)
 				
 			else
 				self.GPSdistance2FieldBorder = nil;
+				self.GPStotalDis2FieldBorder = nil;
 			end;
 			
 			-- sounds
@@ -1411,6 +1454,29 @@ function GPS:update(dt)
 				if self.GPS_LRoffset ~= 0 then
 					offsetLine = 1;
 				end;
+				
+				-- Debug Rendering 
+				local c = {};
+				local targetLaneNode = clone(self.GPSsearchnode, true, false, false);
+				setTranslation(targetLaneNode, self.GPSturningDirection*self.GPSWidth*(self.GPSturningMinFreeLanes+1), 0, self.GPSzNodeReverse-5);
+				local dx, _, dz = getWorldTranslation(targetLaneNode);
+				if GPS:isField(dx, dz) then
+					c = {0,1,0}; -- grün
+				else
+					c = {1,0,0}; -- rot
+				end;
+				local ry = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, rx, 0, rz) + 2.2; -- + math.max(math.min(2*(k-kmin-5)/(kmax-kmin),1),0)*(y_offset-.2);
+				local dy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, dx, 0, dz) + 0.5; -- + math.max(math.min(2*(k-kmin-5)/(kmax-kmin),1),0)*(y_offset-.2);
+				drawDebugPoint(rx, ry, rz, 0, 0.2, 0, 1);
+				drawDebugPoint(dx, dy, dz, c[1]*0.2, c[2]*0.2, 0, 1);
+				for ii = 1, 3 do
+					local fDis = 0.2 + ii / 7;
+					GPS:drawDebugSquare(rx, ry, rz, fDis, c[1]*fDis/2, c[2]*fDis/2, 0);
+					GPS:drawDebugSquare(dx, dy, dz, fDis, c[1]*fDis/2, c[2]*fDis, c[3]);
+				end;
+				-- GPS:drawDebugSquare(rx+self.GPS_LRoffset*lhDirectionPlusMinus, ry, rz, self.GPSWidth, 0.4, 0.4, 0);
+				--
+				
 				for kk = -1,1+offsetLine,1 do
 				
 					if kk == 0 then --middle line
@@ -1804,7 +1870,8 @@ end;
 
 function GPS:isField(x,z) --new method supplied by Koper. Thanks! :)
 	--return (getDensityAtWorldPos(g_currentMission.terrainDetailId, x, z) % 16) > 0; 
-	return (getDensityAtWorldPos(g_currentMission.terrainDetailId, x, 0, z) % 16) > 0; 
+	-- return (getDensityAtWorldPos(g_currentMission.terrainDetailId, x, 0, z) % 16) > 0; 
+	return getDensityAtWorldPos(g_currentMission.terrainDetailId, x, 0, z) % 16 ~= 0; 
 	
 end; 
 
@@ -2386,4 +2453,11 @@ function GPS:changeStoreSlot(self, numSlotChange)
 	else
 		self.GPSbuttonTimer = self.GPSbuttonTimerDiff;
 	end;
+end;
+
+function GPS:drawDebugSquare(wx, wy, wz, fDis, r, g, b)
+	drawDebugLine(wx - fDis/2, wy, wz - fDis/2, r, g, b, wx - fDis/2, wy, wz + fDis/2, r, g, b);
+	drawDebugLine(wx - fDis/2, wy, wz + fDis/2, r, g, b, wx + fDis/2, wy, wz + fDis/2, r, g, b);
+	drawDebugLine(wx + fDis/2, wy, wz + fDis/2, r, g, b, wx + fDis/2, wy, wz - fDis/2, r, g, b);
+	drawDebugLine(wx + fDis/2, wy, wz - fDis/2, r, g, b, wx - fDis/2, wy, wz - fDis/2, r, g, b);
 end;
