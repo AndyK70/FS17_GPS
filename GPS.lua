@@ -1,7 +1,8 @@
 --
 -- GPS with steering assistance
 --[[
-	V5.02.005 AndyK70 WIP:		setting the auto stop point to the implement work area
+	V5.02.006 AndyK70 WIP:		setting the auto stop point to the implement work area
+	V5.02.005 AndyK70 			in-/decreasing course width and shifting course now in three different velocities
 	V5.02.004 AndyK70 			bugfix auto work width
 	V5.02.003 AndyK70 			turn to designated lane no. even if turn radius is bigger than lane width not going to next lane
 	V5.02.002 AndyK70			no GPS deactivation when switching to a different vehicle with no GPS active and steering and coming back to first vehicle
@@ -418,15 +419,16 @@ function GPS:update(dt)
 		self.GPS_HUD_distanceStr = "--	";		
 		if self.GPSdistance2FieldBorder ~= nil then
 			if self.GPSautoStop and self.GPSTurnInsteadOfAutoStop then
-				self.GPS_HUD_distanceStr = string.format("%2.1f (%2.1f)",self.GPSdistance2FieldBorder - self.GPSautoStopDistance, self.GPStotalDis2FieldBorder - self.GPSautoStopDistance);
+				self.GPS_HUD_distanceStr = string.format("%2.1f",self.GPSdistance2FieldBorder - self.GPSautoStopDistance);
 			else
-				self.GPS_HUD_distanceStr = string.format("%2.1f (%2.1f)",self.GPSdistance2FieldBorder, self.GPStotalDis2FieldBorder);
+				self.GPS_HUD_distanceStr = string.format("%2.1f",self.GPSdistance2FieldBorder);
 			end;
 		end;
 
 		self.GPS_HUD_OffsetStr = "0 ";
 		if self.GPS_LRoffset ~= 0 then
 			if self.GPS_LRoffset > 0 then
+
 				self.GPS_HUD_OffsetStr = string.format("+%2.1f",self.GPS_LRoffset);
 			else
 				self.GPS_HUD_OffsetStr = string.format("%2.1f",self.GPS_LRoffset);
@@ -437,13 +439,7 @@ function GPS:update(dt)
 		self.GPS_HUD_rowStr = " 0";
 		local row = self.GPSlaneNo - self.GPSlaneNoOffset;
 		self.GPS_HUD_rowStr = string.format("% d",row);
-		--[[ if row > 0 then
-			self.GPS_HUD_rowStr = string.format("+%d",row);
-		else		
-			self.GPS_HUD_rowStr = string.format("%d",row);
-		end; --]]
 		
-		-- AndyK70: for debug purposes only
 		if self.GPSActive and self.isEntered then
 			local sDirection = "";
 			self.GPSdirection = GPS:getDirection(self); -- get actual direction in degree, 0=north, 90=east, ...
@@ -453,22 +449,22 @@ function GPS:update(dt)
 			end;
 			self.GPSdiffdegree = GPS:getDiffDegree(self.GPSdirection, self.GPStargetDirection);
 			
+		--[[ AndyK70: for debug purposes only
 			local iX, iY, iTxtSize = 0.02, 0.5, 0.015;
-			local sHead = "Target Lane\nDirection\nTargetDirection\nDiffDegree\nmaxAway\nlanesAway\nSteer";
+			local sHead = "GPS_shiftParallel\ndisFactor\nDirection\nTargetDirection\nDiffDegree\nmaxAway\nlanesAway\nSteer";
 			local sHeadWidth = getTextWidth(iTxtSize, sHead);
 			local sBlankWidth = getTextWidth(iTxtSize, "_");
-			local sDirection = string.format("% 6d\n% 6.1f\n% 6.1f\n% 6.1f\n% 6d\n% 6d\n% 6.1f", self.GPSisTurningTargetLane, self.GPSdirection, self.GPStargetDirection, self.GPSdiffdegree, Utils.getNoNil(self.GPSmaxLanesAway, -1), Utils.getNoNil(self.GPSlanesAway, -1), Utils.getNoNil(self.GPSsteeringOffset, 0));
+			local sShiftParallel = string.format("% 4.2f", Utils.getNoNil(self.GPS_shiftParallel, 0.0));
+			local sDirection = string.format("%s\n% 1.4f\n% 6.1f\n% 6.1f\n% 6.1f\n% 6d\n% 6d\n% 6.1f", sShiftParallel, Utils.getNoNil(self.disFactor, 0), self.GPSdirection, self.GPStargetDirection, self.GPSdiffdegree, Utils.getNoNil(self.GPSmaxLanesAway, -1), Utils.getNoNil(self.GPSlanesAway, -1), Utils.getNoNil(self.GPSsteeringOffset, 0));
 			renderText(iX, iY, iTxtSize, sHead);
 			renderText(iX + sHeadWidth + sBlankWidth, iY, iTxtSize, "=\n=\n=\n=\n=\n=\n=")
 			setTextAlignment(RenderText.ALIGN_RIGHT);
 			renderText(iX + sHeadWidth + sBlankWidth*3  + getTextWidth(iTxtSize, "_______"), iY, iTxtSize, sDirection);
 			setTextAlignment(RenderText.ALIGN_LEFT);
+		--]]
 		else
 			self.GPSdirection = nil;
 		end;
-		
-		
-		--]]
 		
 		self.GPSanalogControllerMode = GPS.GPSanalogControllerMode; --copy for comp. with HUD
 		
@@ -489,7 +485,7 @@ function GPS:update(dt)
 	local needPushEvent = false;
 	local isCourseAdjust = InputBinding.isPressed(InputBinding.GPS_adjustCourseModifier);
 	
-	-- by AndyK70 trying to get GPS react only if entered in that vehicle which is active.
+	-- by AndyK70 get GPS to react only if entered in that vehicle which is active.
 	if self.GPSActive then
 		self.GPSisEntered = self.isEntered;
 	else
@@ -571,29 +567,26 @@ function GPS:update(dt)
 			end;
 			
 			if not self.userInputActive then
-				-- GPS:dprint("isCourseAdjust="..tostring(isCourseAdjust));
 				if isCourseAdjust then
-					-- GPS:dprint("GPS_LRoffsetUC="..tostring(self.GPS_LRoffsetUC));
-					-- GPS:dprint("GPS_LRoffset="..tostring(self.GPS_LRoffset));
+					local iTime1 = 2000;
+					local iTime2 = 5000;
+
 					if self.GPS_LRoffsetUC == nil --[[or GPS:round(self.GPS_LRoffsetUC, 1) ~= self.GPS_LRoffset ]] then
 						self.GPS_LRoffsetUC = self.GPS_LRoffset;
 					end;
 					if (InputBinding.isPressed(InputBinding.GPS_OffsetLeft) and InputBinding.isPressed(InputBinding.GPS_OffsetRight)) or InputBinding.hasEvent(InputBinding.GPS_OffsetZero) then
 						-- GPS:dprint("Set offset to 0");
-						--self.GPS_LRoffset = 0;
 						self.GPS_LRoffsetUC = 0;
 						self.GPS_LRoffset_resetTimer = 800;
 						needPushEvent = true;
 					elseif self.GPS_LRoffset_resetTimer == 0 then
 						if InputBinding.isPressed(InputBinding.GPS_OffsetRight) then
-							--self.GPS_LRoffset = self.GPS_LRoffset + .0008*dt;				
 							self.GPS_LRoffsetUC = self.GPS_LRoffsetUC + .0008*dt;
 							self.GPSshowTime = 800;
 							needPushEvent = true;
 						end;
 						
 						if InputBinding.isPressed(InputBinding.GPS_OffsetLeft) then
-							--self.GPS_LRoffset = self.GPS_LRoffset - .0008*dt;				
 							self.GPS_LRoffsetUC = self.GPS_LRoffsetUC - .0008*dt;
 							self.GPSshowTime = 800;
 							needPushEvent = true;
@@ -607,44 +600,74 @@ function GPS:update(dt)
 					 self.GPSWidthUC = self.GPSWidth;
 					end;
 
+					disFactor = 0.0001;
+					self.GPS_Width = self.GPS_Width or 0; -- if nil then 0 else nothig;
+					if self.GPS_Width > iTime1 and disFactor < 0.0002 then
+						disFactor = 0.0002;
+					end;
+					if self.GPS_Width > iTime2 and disFactor < 0.0005 then
+						disFactor = 0.0005;
+					end;
 					if InputBinding.isPressed(InputBinding.GPS_WidthPlus) and self.GPSWidthUC < 50 then
-						--self.GPSWidth = self.GPSWidth + .00025*dt*(self.GPSWidth+1);
-						local tempDiff = math.max(.00025*dt*(self.GPSWidthUC+1), 0.02);
+						local tempDiff = math.max(disFactor*dt*(self.GPSWidthUC+1), 0.02);
 						self.GPSWidthUC = self.GPSWidthUC + tempDiff;
 						if self.GPSWidthUC > 50 then
 							self.GPSWidthUC = 50;
 						end;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
+						self.GPS_Width = self.GPS_Width + dt;
 						needPushEvent = true;
 					end;
 					
 					if InputBinding.isPressed(InputBinding.GPS_WidthMinus) and self.GPSWidthUC > 0.1 then		
-						--self.GPSWidth = self.GPSWidth - .00025*dt*(self.GPSWidth+1);
-						local tempDiff = math.max(.00025*dt*(self.GPSWidthUC+1), 0.02);
+						local tempDiff = math.max(disFactor*dt*(self.GPSWidthUC+1), 0.02);
 						self.GPSWidthUC = self.GPSWidthUC - tempDiff;
 						if self.GPSWidthUC < 0.1 then
 							self.GPSWidthUC = 0.1;
 						end;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
+						self.GPS_Width = self.GPS_Width + dt;
 						needPushEvent = true;
 					end;
 					self.GPSWidth = GPS:round(self.GPSWidthUC, 1);
 					
+					if not (InputBinding.isPressed(InputBinding.GPS_WidthPlus) or InputBinding.isPressed(InputBinding.GPS_WidthMinus)) then
+						self.GPS_Width = 0;
+					end;
+					
 					--parallel shift calc
-					self.GPS_maxLRoffset = self.GPSWidth/2;-- + 3; -- GPS_maxLROffset = 3m out of working area for i.e. Grimme SE260
+					self.GPS_maxLRoffset = self.GPSWidth/2;	
 					if self.GPS_LRoffsetUC > self.GPS_maxLRoffset then
 						self.GPS_LRoffsetUC = self.GPS_maxLRoffset;
 					elseif self.GPS_LRoffsetUC < -self.GPS_maxLRoffset then
 						self.GPS_LRoffsetUC = -self.GPS_maxLRoffset;
 					end;
 					self.GPS_LRoffset = GPS:round(self.GPS_LRoffsetUC, 1);
-					--print("input binding LR+: LRUC="..self.GPS_LRoffsetUC.."; LR="..self.GPS_LRoffset);
-					
+
+					local disFactor = 0.001;	-- the longer is pressed the bigger the multiplier
+					if InputBinding.isPressed(InputBinding.GPS_shiftParallelRight) or InputBinding.isPressed(InputBinding.GPS_shiftParallelLeft) then 
+						if self.GPS_shiftParallel == nil then
+							self.GPS_shiftParallel = dt;
+						else
+							self.GPS_shiftParallel = self.GPS_shiftParallel + dt;
+						end;
+						if self.GPS_shiftParallel > iTime1 and self.GPS_shiftParallel <= iTime2 then
+							if disFactor == 0.001 then
+								disFactor = 0.002;
+							end;
+						end;
+						if self.GPS_shiftParallel > iTime2 then
+							disFactor = 0.005;
+						end;
+					elseif not InputBinding.isPressed(InputBinding.GPS_shiftParallelRight) and not InputBinding.isPressed(InputBinding.GPS_shiftParallelLeft) and self.GPS_shiftParallel then
+						self.GPS_shiftParallel = nil;
+					end;
+					self.disFactor = disFactor; -- only for debug purpose
 					if InputBinding.isPressed(InputBinding.GPS_shiftParallelRight) then 
 						local ppx,ppy,ppz = getWorldTranslation(self.GPSnode);
-						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*0.001*self.lhdZ0,ppy,ppz+dt*0.001*self.lhdX0);
+						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*disFactor*self.lhdZ0,ppy,ppz+dt*disFactor*self.lhdX0);
 						local lr = self.GPSdirectionPlusMinus;
 						local lhdX0 = self.lhdX0
 						local lhdZ0 = self.lhdZ0
@@ -657,8 +680,8 @@ function GPS:update(dt)
 								lhdX0 = 1;
 							end;	
 						end;
-						self.lhX0 = self.lhX0 + lr*dt*0.001*lhdZ0;
-						self.lhZ0 = self.lhZ0 + lr*dt*0.001*lhdX0;
+						self.lhX0 = self.lhX0 + lr*dt*disFactor*lhdZ0;
+						self.lhZ0 = self.lhZ0 + lr*dt*disFactor*lhdX0;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
 						needPushEvent = true;
@@ -666,7 +689,7 @@ function GPS:update(dt)
 				
 					if InputBinding.isPressed(InputBinding.GPS_shiftParallelLeft) then 
 						local ppx,ppy,ppz = getWorldTranslation(self.GPSnode);
-						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*0.001*self.lhdZ0,ppy,ppz+dt*0.001*self.lhdX0);
+						local xxx,yyy,zzz = worldToLocal(self.GPSnode,ppx+dt*disFactor*self.lhdZ0,ppy,ppz+dt*disFactor*self.lhdX0);
 						local lr = self.GPSdirectionPlusMinus;
 						local lhdX0 = self.lhdX0
 						local lhdZ0 = self.lhdZ0
@@ -679,8 +702,8 @@ function GPS:update(dt)
 								lhdX0 = 1;
 							end;	
 						end;
-						self.lhX0 = self.lhX0 - lr*dt*0.001*lhdZ0;
-						self.lhZ0 = self.lhZ0 - lr*dt*0.001*lhdX0;
+						self.lhX0 = self.lhX0 - lr*dt*disFactor*lhdZ0;
+						self.lhZ0 = self.lhZ0 - lr*dt*disFactor*lhdX0;
 						self.GPSshowTime = 800;
 						self.GPSclickTimer = 2000;
 						needPushEvent = true;
@@ -1465,14 +1488,17 @@ function GPS:update(dt)
 				else
 					c = {1,0,0}; -- rot
 				end;
-				local ry = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, rx, 0, rz) + 2.2; -- + math.max(math.min(2*(k-kmin-5)/(kmax-kmin),1),0)*(y_offset-.2);
+				local ry = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, rx, 0, rz) + 2.5; -- + math.max(math.min(2*(k-kmin-5)/(kmax-kmin),1),0)*(y_offset-.2);
 				local dy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, dx, 0, dz) + 0.5; -- + math.max(math.min(2*(k-kmin-5)/(kmax-kmin),1),0)*(y_offset-.2);
-				drawDebugPoint(rx, ry, rz, 0, 0.2, 0, 1);
-				drawDebugPoint(dx, dy, dz, c[1]*0.2, c[2]*0.2, 0, 1);
-				for ii = 1, 3 do
-					local fDis = 0.2 + ii / 7;
-					GPS:drawDebugSquare(rx, ry, rz, fDis, c[1]*fDis/2, c[2]*fDis/2, 0);
-					GPS:drawDebugSquare(dx, dy, dz, fDis, c[1]*fDis/2, c[2]*fDis, c[3]);
+				drawDebugPoint(rx, ry, rz, c[1]*0.2, c[2]*0.2, 0, 1);
+				-- drawDebugPoint(dx, dy, dz, c[1]*0.2, c[2]*0.2, 0, 1);
+				local iStep = 6
+				for ii = 1, iStep do
+					-- local fDis = 0.1 + ii / 7;
+					local fDis = ii / (iStep*2);
+					-- GPS:drawDebugSquare(rx, ry, rz, fDis, c[1]*fDis/2, c[2]*fDis/2, 0);
+					GPS:drawDebugCircle(rx, ry+fDis/4, rz, fDis/3, c[1]*(fDis+.3), c[2]*(fDis+.3), 0);
+					-- GPS:drawDebugSquare(dx, dy, dz, fDis, c[1]*fDis/2, c[2]*fDis, c[3]);
 				end;
 				-- GPS:drawDebugSquare(rx+self.GPS_LRoffset*lhDirectionPlusMinus, ry, rz, self.GPSWidth, 0.4, 0.4, 0);
 				--
@@ -2461,3 +2487,46 @@ function GPS:drawDebugSquare(wx, wy, wz, fDis, r, g, b)
 	drawDebugLine(wx + fDis/2, wy, wz + fDis/2, r, g, b, wx + fDis/2, wy, wz - fDis/2, r, g, b);
 	drawDebugLine(wx + fDis/2, wy, wz - fDis/2, r, g, b, wx - fDis/2, wy, wz - fDis/2, r, g, b);
 end;
+
+function GPS:drawDebugCircle(wx, wy, wz, radius, r, g, b, iSteps)
+	if wx == nil or wy == nil or wz == nil or radius == nil or r == nil or g == nil or b == nil then
+		GPS:dprint("missing parameter");
+		return;
+	end;
+	iSteps = iSteps or 3;	-- default = 2
+	local i = 0; fx = 0; fz = 0;
+	local point = {}; -- e.g. point[1].x = 0.0; point[1].y = 3.0;
+	local fHypo = radius^2;	-- Hypothenuse bleibt immer gleich
+	-- local fRadhalb = radius/2;	-- nur bis zur Hälfte, da wir die andere Hälfte durch xz vertauschen spiegeln können
+	local fRadhalb = radius*1.8/3;	-- etwas über Hälfte, Rest durch xz vertauschen spiegeln
+	local fDis = fRadhalb / iSteps;
+	
+	for i = 0, iSteps, 1 do
+		fx = (fRadhalb / iSteps) * i;	-- Ankathete
+		fz = math.sqrt(fHypo - fx^2);	-- Gegenkathete
+		point[i] = {};	-- leere Tabelle für x und z anlegen
+		point[i].x = fx;
+		point[i].z = fz;
+	end;
+	-- point[iSteps+1] = {};
+	-- point[iSteps+1].x = point[1].x;	-- dann müssen wir in der nächsten Schleife 
+	-- point[iSteps+1].z = point[1].z;	-- nicht auf Boundary prüfen...
+	
+	for i = 1, iSteps, 1 do
+		drawDebugLine(wx + point[i-1].x, wy, wz + point[i-1].z, r, g, b, wx + point[i].x, wy, wz + point[i].z, r, g, b);
+		drawDebugLine(wx + point[i-1].x, wy, wz - point[i-1].z, r, g, b, wx + point[i].x, wy, wz - point[i].z, r, g, b);
+		drawDebugLine(wx - point[i-1].x, wy, wz - point[i-1].z, r, g, b, wx - point[i].x, wy, wz - point[i].z, r, g, b);
+		drawDebugLine(wx - point[i-1].x, wy, wz + point[i-1].z, r, g, b, wx - point[i].x, wy, wz + point[i].z, r, g, b);
+		-- jetzt noch x und z vertauschen zum Spiegeln der anderen Radiushälfte und nochmal das Gleiche 
+		drawDebugLine(wx + point[i-1].z, wy, wz + point[i-1].x, r, g, b, wx + point[i].z, wy, wz + point[i].x, r, g, b);
+		drawDebugLine(wx + point[i-1].z, wy, wz - point[i-1].x, r, g, b, wx + point[i].z, wy, wz - point[i].x, r, g, b);
+		drawDebugLine(wx - point[i-1].z, wy, wz - point[i-1].x, r, g, b, wx - point[i].z, wy, wz - point[i].x, r, g, b);
+		drawDebugLine(wx - point[i-1].z, wy, wz + point[i-1].x, r, g, b, wx - point[i].z, wy, wz + point[i].x, r, g, b);
+	end;
+	-- und jetzt noch die Verbindung von den letzten Punkten und den letzten vertauschten Punkten
+		drawDebugLine(wx + point[iSteps].x, wy, wz + point[iSteps].z, r, g, b, wx + point[iSteps].z, wy, wz + point[iSteps].x, r, g, b);
+		drawDebugLine(wx + point[iSteps].x, wy, wz - point[iSteps].z, r, g, b, wx + point[iSteps].z, wy, wz - point[iSteps].x, r, g, b);
+		drawDebugLine(wx - point[iSteps].x, wy, wz - point[iSteps].z, r, g, b, wx - point[iSteps].z, wy, wz - point[iSteps].x, r, g, b);
+		drawDebugLine(wx - point[iSteps].x, wy, wz + point[iSteps].z, r, g, b, wx - point[iSteps].z, wy, wz + point[iSteps].x, r, g, b);
+end;
+
