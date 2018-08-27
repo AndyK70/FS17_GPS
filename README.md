@@ -7,7 +7,7 @@ extending the original version 5.01 from upsidedown
 * V5.02.003 turning to designated lane even if turning radius is to big.
 * V5.02.004 Bugfix auto work width
 * V5.02.005 in-/decreasing course width and shifting course now in three different velocities
-* V5.02.006 WIP: setting the auto stop point to the implement work area
+* V5.02.006 auto stop point can be negative to shift it to the rear to the implement work area.
 
 ToDo
 * separating GPS courses from vehicle attributes to own GPSSettings.xml
