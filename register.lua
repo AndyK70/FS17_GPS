@@ -1,12 +1,30 @@
-SpecializationUtil.registerSpecialization("GPS", "GPS", g_currentModDirectory.."GPS.lua")
-
+local GPS_directory = g_currentModDirectory;
+SpecializationUtil.registerSpecialization("GPS", "GPS", GPS_directory.."GPS.lua")
 GPS_Register = {};
+
 
 function GPS_Register:loadMap(name)
 	if self.GPS_register_firstRun == nil then
 		self.GPS_register_firstRun = false;
-		print("--- loading GPS mod V5.02.003 --- (by upsidedown, extended by AndyK70)")
 		
+		local xmlfile = loadXMLFile("modDesc.xml", GPS_directory.."modDesc.xml");
+		if xmlfile then
+			local GPSversion = getXMLString(xmlfile, "modDesc.version");
+			xmlfile = nil;
+		end;
+		
+		if GPSversion then
+			modVersion = GPSversion;
+		else
+			modVersion = "0.00.000";
+		end;
+		if self.name then
+			modName = self.name;
+		else
+			modName = "GPS";
+		end;
+		print("--- loading "..modName.." V"..modVersion.." --- (by upsidedown, extended by AndyK70)")
+		meMyselfAndI = nil;
 		for k, v in pairs(VehicleTypeUtil.vehicleTypes) do
 			if v ~= nil then
 				local allowInsertion = true;
